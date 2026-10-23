@@ -107,7 +107,7 @@ const INDEX_HTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MBDMS | Blood Donation Management</title>
+    <title>Mobile Blood Donation Management System</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 
