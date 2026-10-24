@@ -28,7 +28,7 @@ const missing = [];
 if (!SUPABASE_URL) missing.push('SUPABASE_URL');
 if (!SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
 if (missing.length) {
-  console.error(Missing environment variable(s): ${missing.join(', ')}. Set them in Render (Environment tab) or in a local .env file.);
+console.error(`Missing environment variable(s): ${missing.join(', ')}. Set them in Render (Environment tab) or in a local .env file.`);
   process.exit(1);
 }
 if (!/^https?:\/\//.test(SUPABASE_URL)) {
