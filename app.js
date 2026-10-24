@@ -32,7 +32,7 @@ console.error(`Missing environment variable(s): ${missing.join(', ')}. Set them 
   process.exit(1);
 }
 if (!/^https?:\/\//.test(SUPABASE_URL)) {
-  console.error(SUPABASE_URL must start with https:// (got "${SUPABASE_URL}").);
+ console.error(`SUPABASE_URL must start with https:// (got "${SUPABASE_URL}").`);
   process.exit(1);
 }
 
