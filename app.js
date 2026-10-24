@@ -17,29 +17,50 @@ const { createClient } = require('@supabase/supabase-js');
 // ==========================================
 // ENVIRONMENT & SYSTEM INITIALIZATION
 // ==========================================
+
 const PORT = Number(process.env.PORT) || 3000;
 
-// Tolerate copy/paste mistakes: quotes, spaces, trailing slash, or a pasted /rest/v1 path.
-const clean = (v) => String(v || '').trim().replace(/^["']|["']$/g, '').trim();
-const SUPABASE_URL = clean(process.env.SUPABASE_URL).replace(/\/rest\/v1\/?$/, '').replace(/\/+$/, '');
-const SUPABASE_SERVICE_ROLE_KEY = clean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+// Clean spaces, surrounding quotes, and trailing Supabase paths.
+const clean = (v) =>
+  String(v || '').trim().replace(/^["']|["']$/g, '').trim();
+
+const SUPABASE_URL = clean(process.env.SUPABASE_URL)
+  .replace(/\/rest\/v1\/?$/, '')
+  .replace(/\/+$/, '');
+
+const SUPABASE_SERVICE_ROLE_KEY = clean(
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 const missing = [];
+
 if (!SUPABASE_URL) missing.push('SUPABASE_URL');
-if (!SUPABASE_SERVICE_ROLE_KEY) missing.push('SUPABASE_SERVICE_ROLE_KEY');
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  missing.push('SUPABASE_SERVICE_ROLE_KEY');
+}
+
 if (missing.length) {
-console.error(`Missing environment variable(s): ${missing.join(', ')}. Set them in Render (Environment tab) or in a local .env file.`);
+  console.error(
+    `Missing environment variable(s): ${missing.join(', ')}. Set them in Render (Environment tab) or in a local .env file.`
+  );
   process.exit(1);
 }
+
 if (!/^https?:\/\//.test(SUPABASE_URL)) {
- console.error(`SUPABASE_URL must start with https:// (got "${SUPABASE_URL}").`);
+  console.error(
+    `SUPABASE_URL must start with https:// (got "${SUPABASE_URL}").`
+  );
   process.exit(1);
 }
 
 // Service-role key: server-side only, never exposed to the browser.
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false }
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
 });
+
 const app = express();
 app.use(express.json({ limit: '100kb' }));
 
@@ -47,16 +68,31 @@ app.use(express.json({ limit: '100kb' }));
 // HELPERS
 // ==========================================
 class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
 }
+
 const text = (value) => String(value ?? '').trim();
-const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
-const isPositiveInt = 👎 => Number.isInteger(n) && n > 0;
+
+const isIsoDate = (value) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+  !Number.isNaN(Date.parse(value));
+
+const isPositiveInt = (n) =>
+  Number.isInteger(n) && n > 0;
+
 // Wraps async handlers so errors reach the central error handler.
-const handler = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
+const handler = (fn) =>
+  (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 
 async function rowExists(table, id) {
-  const { count, error } = await db.from(table).select('id', { count: 'exact', head: true }).eq('id', id);
+  const { count, error } = await db
+    .from(table)
+    .select('id', { count: 'exact', head: true })
+    .eq('id', id);
+
   if (error) throw error;
   return count > 0;
 }
