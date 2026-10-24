@@ -1429,6 +1429,6 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(Blood Drive Manager listening on port ${PORT});
+  console.log(`Blood Drive Manager listening on port ${PORT}`);
   checkConnection();
 });
