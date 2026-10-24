@@ -120,7 +120,7 @@ const INDEX_HTML = `<!DOCTYPE html>
             <div class="brand-symbol">+</div>
             <div>
                 <h2>MBDMS</h2>
-                <p>Blood Donation Management</p>
+                <p>Mobile Blood Donation Management System</p>
             </div>
         </div>
 
