@@ -1055,17 +1055,15 @@ select.inline { padding: 6px; border: 1px solid var(--border); border-radius: 6p
 }
 `;
 
-const CLIENT_JS = /* MBDMS frontend.
-   - Supabase Auth (publishable key) is used ONLY to sign in and keep the session.
-   - Every data request goes to this site's /api with the Auth token. The server
-     verifies the token, loads the staff role from the database and enforces
-     permissions. The checks in this file only hide buttons and pages a role
-     cannot use; they are not the security. */
- 
+const CLIENT_JS = `
 const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = window.MBDMS_CONFIG;
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
- 
+const sb = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY
+);
+
 const $ = id => document.getElementById(id);
+`;
  
 const ROLES = {
     administrator: "Administrator",
