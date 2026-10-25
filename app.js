@@ -32,9 +32,15 @@ const SUPABASE_SERVICE_ROLE_KEY = clean(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Browser-safe Supabase publishable key. Set this in Render Environment.
+const SUPABASE_PUBLISHABLE_KEY = clean(
+  process.env.SUPABASE_PUBLISHABLE_KEY
+);
+
 const missing = [];
 
 if (!SUPABASE_URL) missing.push('SUPABASE_URL');
+if (!SUPABASE_PUBLISHABLE_KEY) missing.push('SUPABASE_PUBLISHABLE_KEY');
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   missing.push('SUPABASE_SERVICE_ROLE_KEY');
 }
@@ -1942,6 +1948,15 @@ $("donor-search").addEventListener("input", renderDonors);
 `;
 
 app.get('/', (req, res) => res.type('html').send(INDEX_HTML));
+// Provide only the public URL/key to the browser; never expose the service-role key.
+app.get('/config.js', (req, res) => {
+  res.type('application/javascript').send(
+    'window.MBDMS_CONFIG = ' + JSON.stringify({
+      SUPABASE_URL,
+      SUPABASE_PUBLISHABLE_KEY
+    }) + ';'
+  );
+});
 app.get('/styles.css', (req, res) => res.type('css').send(STYLES_CSS));
 app.get('/app.js', (req, res) => res.type('js').send(CLIENT_JS));
 
