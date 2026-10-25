@@ -87,24 +87,63 @@ const isPositiveInt = (n) =>
 const handler = (fn) =>
   (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 
+const PRIMARY_KEYS = {
+  staff_profiles: 'id',
+  donors: 'donor_id',
+  mbd_activities: 'activity_id',
+  activity_staff_assignments: 'assignment_id',
+  activity_donors: 'participation_id',
+  screening_records: 'screening_id',
+  donation_records: 'donation_id'
+};
+
 async function rowExists(table, id) {
+  const primaryKey = PRIMARY_KEYS[table];
+
+  if (!primaryKey) {
+    throw new Error(`Unknown table: ${table}`);
+  }
+
   const { count, error } = await db
     .from(table)
-    .select('id', { count: 'exact', head: true })
-    .eq('id', id);
+    .select(primaryKey, { count: 'exact', head: true })
+    .eq(primaryKey, id);
 
   if (error) throw error;
   return count > 0;
 }
+
 async function countRows(table, narrow) {
-  let query = db.from(table).select('id', { count: 'exact', head: true });
+  const primaryKey = PRIMARY_KEYS[table];
+
+  if (!primaryKey) {
+    throw new Error(`Unknown table: ${table}`);
+  }
+
+  let query = db
+    .from(table)
+    .select(primaryKey, { count: 'exact', head: true });
+
   if (narrow) query = narrow(query);
+
   const { count, error } = await query;
+
   if (error) throw error;
   return count;
 }
+
 async function listAll(table) {
-  const { data, error } = await db.from(table).select('*').order('id');
+  const primaryKey = PRIMARY_KEYS[table];
+
+  if (!primaryKey) {
+    throw new Error(`Unknown table: ${table}`);
+  }
+
+  const { data, error } = await db
+    .from(table)
+    .select('*')
+    .order(primaryKey);
+
   if (error) throw error;
   return data;
 }
@@ -125,7 +164,11 @@ function explainDbError(err) {
 }
 
 async function checkConnection() {
-  const { error } = await db.from('mbd_activities').select('id', { head: true, count: 'exact' }).limit(1);
+  const { error } = await db
+  .from('mbd_activities')
+  .select('activity_id', { head: true, count: 'exact' })
+  .limit(1);
+
   if (error) {
     console.error('Supabase connection check FAILED:', error.message || error);
     const hint = explainDbError(error);
@@ -1241,15 +1284,18 @@ $("new-donor").addEventListener("submit", e =>
 
 $("new-screening").addEventListener("submit", e =>
     submitForm(e, "/api/screenings", {
-        donorId: $("screening-donor").value,
-        activityId: $("screening-activity").value,
-        outcome: $("screening-outcome").value
+        participationId: $("screening-participation").value,
+        outcome: $("screening-outcome").value,
+        outcomeReason: $("screening-reason").value,
+        notes: $("screening-notes").value
     }, "screening-form"));
 
 $("new-donation").addEventListener("submit", e =>
     submitForm(e, "/api/donations", {
-        donorId: $("donation-donor").value,
-        activityId: $("donation-activity").value
+        participationId: $("donation-participation").value,
+        bagSerialNo: $("donation-bag-serial").value,
+        volumeMl: $("donation-volume").value,
+        donationStatus: $("donation-status").value
     }, "donation-form"));
 
 $("reset-data").addEventListener("click", async () => {
@@ -1276,10 +1322,10 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 app.get('/api/summary', handler(async (req, res) => {
   const [activities, donors, screenings, donations] = await Promise.all([
-    countRows('activities'),
+    countRows('mbd_activities'),
     countRows('donors'),
-    countRows('screenings'),
-    countRows('donations', (q) => q.eq('status', 'Completed'))
+    countRows('screening_records'),
+    countRows('donation_records', (q) => q.eq('donation_status', 'completed'))
   ]);
   res.json({ activities, donors, screenings, donations });
 }));
@@ -1295,81 +1341,157 @@ app.post('/api/reset', handler(async (req, res) => {
 // API: ACTIVITIES
 // ==========================================
 app.get('/api/activities', handler(async (req, res) => {
-  res.json(await listAll('activities'));
-}));
+   res.json(await listAll('mbd_activities'));
+ }));
 
-app.post('/api/activities', handler(async (req, res) => {
-  const name = text(req.body.name);
-  const date = text(req.body.date);
-  const venue = text(req.body.venue);
+ app.post('/api/activities', handler(async (req, res) => {
+   const name = text(req.body.name);
+   const date = text(req.body.date);
+   const venue = text(req.body.venue);
+   const startTime = text(req.body.startTime);
+   const endTime = text(req.body.endTime);
 
-  if (!name || !date || !venue) throw new HttpError(400, 'Name, date and venue are required.');
-  if (!isIsoDate(date)) throw new HttpError(400, 'Invalid date.');
+   if (!name || !date || !venue || !startTime || !endTime) {
+     throw new HttpError(
+       400,
+       'Name, date, venue, start time and end time are required.'
+     );
+   }
 
-  const { data, error } = await db
-    .from('mbd_activities')
-    .insert({ name, date, venue, status: 'Scheduled' })
-    .select()
-    .single();
-  if (error) throw error;
-  res.status(201).json(data);
-}));
+   if (!isIsoDate(date)) {
+     throw new HttpError(400, 'Invalid date.');
+   }
+
+   const { data, error } = await db
+     .from('mbd_activities')
+     .insert({
+       activity_name: name,
+       location: venue,
+       activity_date: date,
+       start_time: startTime,
+       end_time: endTime,
+       activity_status: 'planned'
+     })
+     .select()
+     .single();
+
+   if (error) throw error;
+   res.status(201).json(data);
+ }));
 
 // ==========================================
-// API: DONORS
+// API: DONORS PARTICIPATION
 // ==========================================
-app.get('/api/donors', handler(async (req, res) => {
-  res.json(await listAll('donors'));
-}));
 
-app.post('/api/donors', handler(async (req, res) => {
-  const first = text(req.body.first);
-  const last = text(req.body.last);
-  const birthdate = text(req.body.birthdate);
-  const contact = text(req.body.contact);
+ app.get('/api/participations', handler(async (req, res) => {
+   res.json(await listAll('activity_donors'));
+ }));
 
-  if (!first || !last || !birthdate || !contact) throw new HttpError(400, 'All donor fields are required.');
-  if (!isIsoDate(birthdate)) throw new HttpError(400, 'Invalid birthdate.');
+ app.post('/api/participations', handler(async (req, res) => {
+   const donorId = Number(req.body.donorId);
+   const activityId = Number(req.body.activityId);
 
-const { data, error } = await db
-  .from('donors')
-  .insert({
-    first_name: first,
-    last_name: last,
-    birthdate: birthdate,
-    contact_number: contact
-  })
-  .select()
-  .single();
-}));
+   if (
+     !Number.isSafeInteger(donorId) ||
+     donorId <= 0 ||
+     !(await rowExists('donors', donorId))
+   ) {
+     throw new HttpError(400, 'Unknown donor.');
+   }
+
+   if (
+     !Number.isSafeInteger(activityId) ||
+     activityId <= 0 ||
+     !(await rowExists('mbd_activities', activityId))
+   ) {
+     throw new HttpError(400, 'Unknown activity.');
+   }
+
+   const { data, error } = await db
+     .from('activity_donors')
+     .insert({
+       donor_id: donorId,
+       activity_id: activityId,
+       participation_status: 'registered'
+     })
+     .select()
+     .single();
+
+   if (error) {
+     if (error.code === '23505') {
+       throw new HttpError(
+         400,
+         'This donor is already registered for this activity.'
+       );
+     }
+     throw error;
+   }
+
+   res.status(201).json(data);
+ }));
 
 // ==========================================
 // API: SCREENINGS
 // Outcomes are recorded by authorized personnel; this app never decides eligibility.
 // ==========================================
-const OUTCOMES = ['Cleared', 'Not cleared'];
-const presentScreening = (r) => ({ id: r.id, donorId: r.donor_id, activityId: r.activity_id, outcome: r.outcome });
+const SCREENING_OUTCOMES = ['accepted', 'deferred', 'rejected'];
 
 app.get('/api/screenings', handler(async (req, res) => {
-  res.json((await listAll('screenings')).map(presentScreening));
+  res.json(await listAll('screening_records'));
 }));
 
 app.post('/api/screenings', handler(async (req, res) => {
-  const donorId = Number(req.body.donorId);
-  const activityId = Number(req.body.activityId);
+  const participationId = Number(req.body.participationId);
   const outcome = text(req.body.outcome);
+  const outcomeReason = text(req.body.outcomeReason);
+  const notes = text(req.body.notes);
 
-  if (!isPositiveInt(donorId) || !(await rowExists('donors', donorId))) throw new HttpError(400, 'Unknown donor.');
-  if (!isPositiveInt(activityId) || !(await rowExists('activities', activityId))) throw new HttpError(400, 'Unknown activity.');
-  if (!OUTCOMES.includes(outcome)) throw new HttpError(400, 'Invalid outcome.');
+  if (!Number.isSafeInteger(participationId) || participationId <= 0) {
+    throw new HttpError(400, 'A valid participation ID is required.');
+  }
+
+  if (!(await rowExists('activity_donors', participationId))) {
+    throw new HttpError(400, 'Unknown participation record.');
+  }
+
+  if (!SCREENING_OUTCOMES.includes(outcome)) {
+    throw new HttpError(
+      400,
+      'Outcome must be accepted, deferred, or rejected.'
+    );
+  }
+
+  if (outcome === 'deferred' && !outcomeReason) {
+    throw new HttpError(
+      400,
+      'A reason is required for a deferred screening.'
+    );
+  }
+
+  const screening = {
+    participation_id: participationId,
+    screening_outcome: outcome,
+    outcome_reason: outcomeReason || null,
+    notes: notes || null
+  };
 
   const { data, error } = await db
     .from('screening_records')
-    .insert({ donor_id: donorId, activity_id: activityId, outcome })
+    .insert(screening)
     .select()
     .single();
-  if (error) throw error;
-  res.status(201).json(presentScreening(data));
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new HttpError(
+        400,
+        'A screening record already exists for this participation.'
+      );
+    }
+    throw error;
+  }
+
+  res.status(201).json(data);
 }));
 
 // ==========================================
@@ -1379,41 +1501,84 @@ const UNIQUE_VIOLATION = '23505';
 const presentDonation = (r) => ({ id: r.id, donorId: r.donor_id, activityId: r.activity_id, status: r.status });
 
 app.get('/api/donations', handler(async (req, res) => {
-  res.json((await listAll('donations')).map(presentDonation));
+  res.json(await listAll('donation_records'));
 }));
 
-// A donation needs the donor's most recent screening for that activity to be "Cleared".
 app.post('/api/donations', handler(async (req, res) => {
-  const donorId = Number(req.body.donorId);
-  const activityId = Number(req.body.activityId);
+  const participationId = Number(req.body.participationId);
+  const bagSerialNo = text(req.body.bagSerialNo);
+  const volumeMl = Number(req.body.volumeMl);
+  const donationStatus = text(req.body.donationStatus);
 
-  if (!isPositiveInt(donorId) || !(await rowExists('donors', donorId))) throw new HttpError(400, 'Unknown donor.');
-  if (!isPositiveInt(activityId) || !(await rowExists('activities', activityId))) throw new HttpError(400, 'Unknown activity.');
+  if (!Number.isSafeInteger(participationId) || participationId <= 0) {
+    throw new HttpError(400, 'A valid participation ID is required.');
+  }
 
-  const { data: recent, error: lookupError } = await db
+  if (!(await rowExists('activity_donors', participationId))) {
+    throw new HttpError(400, 'Unknown participation record.');
+  }
+
+  if (!bagSerialNo) {
+    throw new HttpError(400, 'Bag serial number is required.');
+  }
+
+  if (!['completed', 'not_completed'].includes(donationStatus)) {
+    throw new HttpError(
+      400,
+      'Donation status must be completed or not_completed.'
+    );
+  }
+
+  if (
+    donationStatus === 'completed' &&
+    (!Number.isFinite(volumeMl) || volumeMl <= 0)
+  ) {
+    throw new HttpError(
+      400,
+      'A completed donation requires a valid donation volume.'
+    );
+  }
+
+  const { data: screening, error: screeningError } = await db
     .from('screening_records')
-    .select('outcome')
-    .eq('donor_id', donorId)
-    .eq('activity_id', activityId)
-    .order('id', { ascending: false })
-    .limit(1);
-  if (lookupError) throw lookupError;
+    .select('screening_outcome')
+    .eq('participation_id', participationId)
+    .maybeSingle();
 
-  if (!recent.length || recent[0].outcome !== 'Cleared') {
-    throw new HttpError(400, "Donor needs a 'Cleared' screening record for this activity first.");
+  if (screeningError) throw screeningError;
+
+  if (
+    donationStatus === 'completed' &&
+    (!screening || screening.screening_outcome !== 'accepted')
+  ) {
+    throw new HttpError(
+      400,
+      'A completed donation requires an accepted screening record.'
+    );
   }
 
   const { data, error } = await db
     .from('donation_records')
-    .insert({ donor_id: donorId, activity_id: activityId, status: 'Completed' })
+    .insert({
+      participation_id: participationId,
+      bag_serial_no: bagSerialNo,
+      volume_ml: donationStatus === 'completed' ? volumeMl : null,
+      donation_status: donationStatus
+    })
     .select()
     .single();
 
   if (error) {
-    if (error.code === UNIQUE_VIOLATION) throw new HttpError(400, 'Donation already recorded for this donor and activity.');
+    if (error.code === '23505') {
+      throw new HttpError(
+        400,
+        'This participation already has a donation record, or the bag serial number is already used.'
+      );
+    }
     throw error;
   }
-  res.status(201).json(presentDonation(data));
+
+  res.status(201).json(data);
 }));
 
 // ==========================================
