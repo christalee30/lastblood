@@ -1056,7 +1056,7 @@ select.inline { padding: 6px; border: 1px solid var(--border); border-radius: 6p
 `;
 
 const CLIENT_JS = `
-`const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = window.MBDMS_CONFIG;
+const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = window.MBDMS_CONFIG;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
  
 const $ = id => document.getElementById(id);
@@ -1133,7 +1133,7 @@ function escapeHTML(value) {
 const pad = (n, len = 3) => String(n).padStart(len, "0");
 const hhmm = t => (t ? String(t).slice(0, 5) : "");
 const label = v => LABELS[v] || v || "";
-const badge = v => `<span class="badge ${BADGE_COLOR[v] || ""}">${escapeHTML(label(v))}</span>`;
+const badge = v => \`<span class="badge \${BADGE_COLOR[v] || ""}">\${escapeHTML(label(v))}</span>\`;
 const nullIfEmpty = v => (v === "" || v === undefined ? null : v);
 const numOrNull = v => (v === "" ? null : Number(v));
  
@@ -1161,8 +1161,8 @@ function activityLabel(activityId) {
 }
 function participationLabel(pid) {
     const p = participationById(pid);
-    if (!p) return `Participation ${pid}`;
-    return `${donorLabel(p.donor_id)} - ${activityLabel(p.activity_id)}`;
+    if (!p) return \`Participation \${pid}\`;
+    return \`\${donorLabel(p.donor_id)} - \${activityLabel(p.activity_id)}\`;
 }
  
 function showMessage(boxId, message, ms) {
@@ -1270,9 +1270,9 @@ function setupShell() {
     const name = state.profile.full_name;
     $("staff-name").textContent = name;
     $("staff-role").textContent = ROLES[state.profile.role];
-    $("staff-avatar").textContent = name.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+    $("staff-avatar").textContent = name.split(/\\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
     $("side-role").textContent = ROLES[state.profile.role];
-    $("welcome-title").textContent = `Welcome, ${name}`;
+    $("welcome-title").textContent = \`Welcome, \${name}\`;
     $("welcome-text").textContent = {
         administrator: "Manage staff accounts and activities, and review donors, screening and donations.",
         coordinator: "Plan activities and assign staff. Medical and donor details are shown as totals only.",
@@ -1282,7 +1282,7 @@ function setupShell() {
     }[state.profile.role];
  
     $("nav-links").innerHTML = PAGES.filter(pg => !pg.show || pg.show(p)).map(pg =>
-        `<button class="nav-link" data-page="${pg.id}"><span class="nav-icon">${pg.icon}</span> ${pg.title}</button>`
+        \`<button class="nav-link" data-page="\${pg.id}"><span class="nav-icon">\${pg.icon}</span> \${pg.title}</button>\`
     ).join("");
  
     $("btn-new-activity").classList.toggle("hidden", !p.manageActivities);
@@ -1293,7 +1293,7 @@ function setupShell() {
     $("report-history-panel").classList.toggle("hidden", !p.readDonors || !p.readParticipations);
  
     $("staff-role-select").innerHTML = Object.entries(ROLES)
-        .map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+        .map(([v, l]) => \`<option value="\${v}">\${l}</option>\`).join("");
 }
  
 /* ---------- Data loading ---------- */
@@ -1333,7 +1333,7 @@ function showPage(pageId) {
 }
  
 /* ---------- Rendering ---------- */
-const empty = (cols, text) => `<tr><td colspan="${cols}" class="empty">${text}</td></tr>`;
+const empty = (cols, text) => \`<tr><td colspan="\${cols}" class="empty">\${text}</td></tr>\`;
  
 function summaryRows() {
     return state.summary || [];
@@ -1342,26 +1342,26 @@ function summaryRows() {
 function activityRow(a, withActions) {
     const p = perm();
     const sum = summaryRows().find(s => s.activity_id === a.activity_id);
-    const manage = withActions ? `
+    const manage = withActions ? \`
         <td class="actions">
-            <button class="button small secondary" data-action="manage-activity" data-id="${a.activity_id}">Manage</button>
-            ${p.manageActivities ? `<button class="button small secondary" data-action="edit-activity" data-id="${a.activity_id}">Edit</button>
-            <button class="button small danger" data-action="delete-activity" data-id="${a.activity_id}">Delete</button>` : ""}
-        </td>` : "";
-    return `<tr>
-        <td>${escapeHTML(a.activity_name)}</td>
-        <td>${escapeHTML(a.activity_date)}</td>
-        <td>${hhmm(a.start_time)} - ${hhmm(a.end_time)}</td>
-        <td>${escapeHTML(a.location)}</td>
-        <td>${badge(a.activity_status)}</td>
-        ${withActions ? `<td>${sum ? sum.participants : 0}</td>${manage}` : ""}
-    </tr>`;
+            <button class="button small secondary" data-action="manage-activity" data-id="\${a.activity_id}">Manage</button>
+            \${p.manageActivities ? \`<button class="button small secondary" data-action="edit-activity" data-id="\${a.activity_id}">Edit</button>
+            <button class="button small danger" data-action="delete-activity" data-id="\${a.activity_id}">Delete</button>\` : ""}
+        </td>\` : "";
+    return \`<tr>
+        <td>\${escapeHTML(a.activity_name)}</td>
+        <td>\${escapeHTML(a.activity_date)}</td>
+        <td>\${hhmm(a.start_time)} - \${hhmm(a.end_time)}</td>
+        <td>\${escapeHTML(a.location)}</td>
+        <td>\${badge(a.activity_status)}</td>
+        \${withActions ? \`<td>\${sum ? sum.participants : 0}</td>\${manage}\` : ""}
+    </tr>\`;
 }
  
 function renderActivities() {
     const q = $("activity-search").value.toLowerCase();
     const filtered = state.activities.filter(a =>
-        `${a.activity_name} ${a.location} ${a.activity_date}`.toLowerCase().includes(q));
+        \`\${a.activity_name} \${a.location} \${a.activity_date}\`.toLowerCase().includes(q));
     $("activity-table").innerHTML = filtered.length
         ? filtered.map(a => activityRow(a, true)).join("") : empty(7, "No activities found.");
  
@@ -1390,39 +1390,39 @@ function renderDetail() {
             const scr = state.screenings.find(s => s.participation_id === x.participation_id);
             const don = state.donations.find(d => d.participation_id === x.participation_id);
             const status = p.writeParticipations
-                ? `<select class="inline" data-action="participation-status" data-id="${x.participation_id}">
-                    ${["registered", "attended", "withdrawn", "no_show"].map(v =>
-                        `<option value="${v}" ${v === x.participation_status ? "selected" : ""}>${label(v)}</option>`).join("")}
-                   </select>`
+                ? \`<select class="inline" data-action="participation-status" data-id="\${x.participation_id}">
+                    \${["registered", "attended", "withdrawn", "no_show"].map(v =>
+                        \`<option value="\${v}" \${v === x.participation_status ? "selected" : ""}>\${label(v)}</option>\`).join("")}
+                   </select>\`
                 : badge(x.participation_status);
             const screenCell = scr ? badge(scr.screening_outcome || "accepted") : '<span class="muted">Not screened</span>';
             const donCell = don ? badge(don.donation_status) : '<span class="muted">-</span>';
             const remove = p.writeParticipations && !scr
-                ? `<button class="button small danger" data-action="remove-participant" data-id="${x.participation_id}">Remove</button>` : "";
-            return `<tr><td>${escapeHTML(donorLabel(x.donor_id))}</td><td>${status}</td><td>${screenCell}</td><td>${donCell}</td><td>${remove}</td></tr>`;
+                ? \`<button class="button small danger" data-action="remove-participant" data-id="\${x.participation_id}">Remove</button>\` : "";
+            return \`<tr><td>\${escapeHTML(donorLabel(x.donor_id))}</td><td>\${status}</td><td>\${screenCell}</td><td>\${donCell}</td><td>\${remove}</td></tr>\`;
         }).join("");
-        participants = `
-            <div class="detail-sub">Participants (${parts.length})</div>
+        participants = \`
+            <div class="detail-sub">Participants (\${parts.length})</div>
             <div class="table-wrap"><table>
                 <thead><tr><th>Donor</th><th>Attendance</th><th>Screening</th><th>Donation</th><th></th></tr></thead>
-                <tbody>${rows || empty(5, "No donors added yet.")}</tbody>
+                <tbody>\${rows || empty(5, "No donors added yet.")}</tbody>
             </table></div>
-            ${p.writeParticipations && open ? `<div class="add-row">
-                <select id="add-participant-select">${available.length
-                    ? available.map(d => `<option value="${d.donor_id}">DON-${pad(d.donor_id)} - ${escapeHTML(fullName(d))}</option>`).join("")
+            \${p.writeParticipations && open ? \`<div class="add-row">
+                <select id="add-participant-select">\${available.length
+                    ? available.map(d => \`<option value="\${d.donor_id}">DON-\${pad(d.donor_id)} - \${escapeHTML(fullName(d))}</option>\`).join("")
                     : '<option value="">No donors available</option>'}</select>
-                <button class="button small" data-action="add-participant">Add Donor</button></div>` : ""}`;
+                <button class="button small" data-action="add-participant">Add Donor</button></div>\` : ""}\`;
     } else {
-        participants = `
+        participants = \`
             <div class="detail-sub">Participants</div>
             <div style="padding:20px;line-height:2;font-size:13px">
                 Totals only for your role:<br>
-                Participants <strong>${sum.participants ?? 0}</strong> |
-                Accepted <strong>${sum.accepted ?? 0}</strong> |
-                Deferred <strong>${sum.deferred ?? 0}</strong> |
-                Rejected <strong>${sum.rejected ?? 0}</strong> |
-                Completed donations <strong>${sum.completed ?? 0}</strong>
-            </div>`;
+                Participants <strong>\${sum.participants ?? 0}</strong> |
+                Accepted <strong>\${sum.accepted ?? 0}</strong> |
+                Deferred <strong>\${sum.deferred ?? 0}</strong> |
+                Rejected <strong>\${sum.rejected ?? 0}</strong> |
+                Completed donations <strong>\${sum.completed ?? 0}</strong>
+            </div>\`;
     }
  
     // Staff
@@ -1431,30 +1431,30 @@ function renderDetail() {
     const availableStaff = state.staff.filter(s => s.account_status === "active" && !assignedIds.has(s.id));
     const staffRows = assigned.map(x => {
         const s = staffById(x.staff_id);
-        return `<tr><td>${escapeHTML(s ? s.full_name : "Unknown")}</td><td>${escapeHTML(s ? ROLES[s.role] : "")}</td>
-            <td>${p.manageAssignments ? `<button class="button small danger" data-action="remove-assignment" data-id="${x.assignment_id}">Remove</button>` : ""}</td></tr>`;
+        return \`<tr><td>\${escapeHTML(s ? s.full_name : "Unknown")}</td><td>\${escapeHTML(s ? ROLES[s.role] : "")}</td>
+            <td>\${p.manageAssignments ? \`<button class="button small danger" data-action="remove-assignment" data-id="\${x.assignment_id}">Remove</button>\` : ""}</td></tr>\`;
     }).join("");
-    const staffBlock = `
-        <div class="detail-sub">Assigned Staff (${assigned.length})</div>
+    const staffBlock = \`
+        <div class="detail-sub">Assigned Staff (\${assigned.length})</div>
         <div class="table-wrap"><table>
             <thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
-            <tbody>${staffRows || empty(3, "No staff assigned yet.")}</tbody>
+            <tbody>\${staffRows || empty(3, "No staff assigned yet.")}</tbody>
         </table></div>
-        ${p.manageAssignments ? `<div class="add-row">
-            <select id="add-staff-select">${availableStaff.length
-                ? availableStaff.map(s => `<option value="${s.id}">${escapeHTML(s.full_name)} (${ROLES[s.role]})</option>`).join("")
+        \${p.manageAssignments ? \`<div class="add-row">
+            <select id="add-staff-select">\${availableStaff.length
+                ? availableStaff.map(s => \`<option value="\${s.id}">\${escapeHTML(s.full_name)} (\${ROLES[s.role]})</option>\`).join("")
                 : '<option value="">No active staff available</option>'}</select>
-            <button class="button small" data-action="add-assignment">Assign Staff</button></div>` : ""}`;
+            <button class="button small" data-action="add-assignment">Assign Staff</button></div>\` : ""}\`;
  
-    panel.innerHTML = `
+    panel.innerHTML = \`
         <div class="panel-header">
-            <h2>${escapeHTML(a.activity_name)} ${badge(a.activity_status)}</h2>
+            <h2>\${escapeHTML(a.activity_name)} \${badge(a.activity_status)}</h2>
             <button class="button small secondary" data-action="close-detail">Close</button>
         </div>
         <div style="padding:14px 20px;font-size:13px" class="muted">
-            ${escapeHTML(a.activity_date)} | ${hhmm(a.start_time)} - ${hhmm(a.end_time)} | ${escapeHTML(a.location)}
+            \${escapeHTML(a.activity_date)} | \${hhmm(a.start_time)} - \${hhmm(a.end_time)} | \${escapeHTML(a.location)}
         </div>
-        <div class="detail-grid"><div>${participants}</div><div>${staffBlock}</div></div>`;
+        <div class="detail-grid"><div>\${participants}</div><div>\${staffBlock}</div></div>\`;
     panel.classList.remove("hidden");
 }
  
@@ -1462,19 +1462,19 @@ function renderDonors() {
     const q = $("donor-search").value.toLowerCase();
     const p = perm();
     const filtered = state.donors.filter(d =>
-        `${fullName(d)} DON-${pad(d.donor_id)}`.toLowerCase().includes(q));
-    $("donor-table").innerHTML = filtered.length ? filtered.map(d => `<tr>
-        <td>DON-${pad(d.donor_id)}</td>
-        <td>${escapeHTML(fullName(d))}</td>
-        <td>${escapeHTML(d.birthdate)}</td>
-        <td>${ageOf(d.birthdate)}</td>
-        <td>${escapeHTML(d.sex ? label(d.sex) : "-")}</td>
-        <td>${escapeHTML(d.blood_type || "-")}</td>
-        <td>${escapeHTML(d.contact_number || "-")}</td>
-        <td>${d.consent_given ? badge("accepted").replace("Accepted", "Given") : '<span class="badge red">Not given</span>'}</td>
-        <td>${badge(d.donor_status)}</td>
-        <td class="actions">${p.writeDonors ? `<button class="button small secondary" data-action="edit-donor" data-id="${d.donor_id}">Edit</button>` : ""}</td>
-    </tr>`).join("") : empty(10, "No donors found.");
+        \`\${fullName(d)} DON-\${pad(d.donor_id)}\`.toLowerCase().includes(q));
+    $("donor-table").innerHTML = filtered.length ? filtered.map(d => \`<tr>
+        <td>DON-\${pad(d.donor_id)}</td>
+        <td>\${escapeHTML(fullName(d))}</td>
+        <td>\${escapeHTML(d.birthdate)}</td>
+        <td>\${ageOf(d.birthdate)}</td>
+        <td>\${escapeHTML(d.sex ? label(d.sex) : "-")}</td>
+        <td>\${escapeHTML(d.blood_type || "-")}</td>
+        <td>\${escapeHTML(d.contact_number || "-")}</td>
+        <td>\${d.consent_given ? badge("accepted").replace("Accepted", "Given") : '<span class="badge red">Not given</span>'}</td>
+        <td>\${badge(d.donor_status)}</td>
+        <td class="actions">\${p.writeDonors ? \`<button class="button small secondary" data-action="edit-donor" data-id="\${d.donor_id}">Edit</button>\` : ""}</td>
+    </tr>\`).join("") : empty(10, "No donors found.");
 }
  
 function renderScreenings() {
@@ -1482,28 +1482,28 @@ function renderScreenings() {
     if (p.readAccepted) {
         $("screening-head").innerHTML = "<tr><th>Donor</th><th>Activity</th><th>Outcome</th></tr>";
         $("screening-table").innerHTML = state.screenings.length ? state.screenings.map(s =>
-            `<tr><td>${escapeHTML(participationLabel(s.participation_id).split(" - ")[0])}</td>
-             <td>${escapeHTML(activityLabel((participationById(s.participation_id) || {}).activity_id))}</td>
-             <td>${badge("accepted")}</td></tr>`).join("") : empty(3, "No accepted donors yet.");
+            \`<tr><td>\${escapeHTML(participationLabel(s.participation_id).split(" - ")[0])}</td>
+             <td>\${escapeHTML(activityLabel((participationById(s.participation_id) || {}).activity_id))}</td>
+             <td>\${badge("accepted")}</td></tr>\`).join("") : empty(3, "No accepted donors yet.");
         return;
     }
-    $("screening-head").innerHTML = `<tr><th>Screening ID</th><th>Donor</th><th>Activity</th><th>BP</th><th>Weight</th><th>Hemoglobin</th><th>Outcome</th><th>Reason</th><th>Screened By</th><th>Actions</th></tr>`;
+    $("screening-head").innerHTML = \`<tr><th>Screening ID</th><th>Donor</th><th>Activity</th><th>BP</th><th>Weight</th><th>Hemoglobin</th><th>Outcome</th><th>Reason</th><th>Screened By</th><th>Actions</th></tr>\`;
     $("screening-table").innerHTML = state.screenings.length ? state.screenings.map(s => {
         const part = participationById(s.participation_id) || {};
         const by = staffById(s.screened_by);
-        const bp = s.systolic_bp && s.diastolic_bp ? `${s.systolic_bp}/${s.diastolic_bp}` : "-";
-        return `<tr>
-            <td>SCR-${pad(s.screening_id)}</td>
-            <td>${escapeHTML(donorLabel(part.donor_id))}</td>
-            <td>${escapeHTML(activityLabel(part.activity_id))}</td>
-            <td>${bp}</td>
-            <td>${s.weight_kg ?? "-"}</td>
-            <td>${s.hemoglobin_g_dl ?? "-"}</td>
-            <td>${badge(s.screening_outcome)}</td>
-            <td>${escapeHTML(s.outcome_reason || "-")}</td>
-            <td>${escapeHTML(by ? by.full_name : "")}</td>
-            <td class="actions">${p.writeScreening ? `<button class="button small secondary" data-action="edit-screening" data-id="${s.screening_id}">Edit</button>` : ""}</td>
-        </tr>`;
+        const bp = s.systolic_bp && s.diastolic_bp ? \`\${s.systolic_bp}/\${s.diastolic_bp}\` : "-";
+        return \`<tr>
+            <td>SCR-\${pad(s.screening_id)}</td>
+            <td>\${escapeHTML(donorLabel(part.donor_id))}</td>
+            <td>\${escapeHTML(activityLabel(part.activity_id))}</td>
+            <td>\${bp}</td>
+            <td>\${s.weight_kg ?? "-"}</td>
+            <td>\${s.hemoglobin_g_dl ?? "-"}</td>
+            <td>\${badge(s.screening_outcome)}</td>
+            <td>\${escapeHTML(s.outcome_reason || "-")}</td>
+            <td>\${escapeHTML(by ? by.full_name : "")}</td>
+            <td class="actions">\${p.writeScreening ? \`<button class="button small secondary" data-action="edit-screening" data-id="\${s.screening_id}">Edit</button>\` : ""}</td>
+        </tr>\`;
     }).join("") : empty(10, "No screening records yet.");
 }
  
@@ -1512,27 +1512,27 @@ function renderDonations() {
     $("donation-table").innerHTML = state.donations.length ? state.donations.map(d => {
         const part = participationById(d.participation_id) || {};
         const by = staffById(d.recorded_by);
-        return `<tr>
-            <td>DONATION-${pad(d.donation_id)}</td>
-            <td>${escapeHTML(donorLabel(part.donor_id))}</td>
-            <td>${escapeHTML(activityLabel(part.activity_id))}</td>
-            <td>${escapeHTML(d.bag_serial_no)}</td>
-            <td>${d.volume_ml === null || d.volume_ml === undefined ? "-" : d.volume_ml + " ml"}</td>
-            <td>${badge(d.donation_status)}</td>
-            <td>${escapeHTML(by ? by.full_name : "")}</td>
-            <td class="actions">${p.writeDonations ? `<button class="button small secondary" data-action="edit-donation" data-id="${d.donation_id}">Edit</button>` : ""}</td>
-        </tr>`;
+        return \`<tr>
+            <td>DONATION-\${pad(d.donation_id)}</td>
+            <td>\${escapeHTML(donorLabel(part.donor_id))}</td>
+            <td>\${escapeHTML(activityLabel(part.activity_id))}</td>
+            <td>\${escapeHTML(d.bag_serial_no)}</td>
+            <td>\${d.volume_ml === null || d.volume_ml === undefined ? "-" : d.volume_ml + " ml"}</td>
+            <td>\${badge(d.donation_status)}</td>
+            <td>\${escapeHTML(by ? by.full_name : "")}</td>
+            <td class="actions">\${p.writeDonations ? \`<button class="button small secondary" data-action="edit-donation" data-id="\${d.donation_id}">Edit</button>\` : ""}</td>
+        </tr>\`;
     }).join("") : empty(8, "No donations recorded yet.");
 }
  
 function renderStaff() {
-    $("staff-table").innerHTML = state.staff.length ? state.staff.map(s => `<tr>
-        <td>${escapeHTML(s.full_name)}</td>
-        <td>${escapeHTML(ROLES[s.role])}</td>
-        <td>${badge(s.account_status)}</td>
-        <td>${escapeHTML((s.created_at || "").slice(0, 10))}</td>
-        <td class="actions"><button class="button small secondary" data-action="edit-staff" data-id="${s.id}">Edit</button></td>
-    </tr>`).join("") : empty(5, "No staff profiles.");
+    $("staff-table").innerHTML = state.staff.length ? state.staff.map(s => \`<tr>
+        <td>\${escapeHTML(s.full_name)}</td>
+        <td>\${escapeHTML(ROLES[s.role])}</td>
+        <td>\${badge(s.account_status)}</td>
+        <td>\${escapeHTML((s.created_at || "").slice(0, 10))}</td>
+        <td class="actions"><button class="button small secondary" data-action="edit-staff" data-id="\${s.id}">Edit</button></td>
+    </tr>\`).join("") : empty(5, "No staff profiles.");
 }
  
 function renderStats() {
@@ -1548,13 +1548,13 @@ function renderReports() {
     const sums = summaryRows();
     $("report-summary").innerHTML = state.activities.length ? state.activities.map(a => {
         const s = sums.find(x => x.activity_id === a.activity_id) || {};
-        return `<tr><td>${escapeHTML(a.activity_name)}</td><td>${escapeHTML(a.activity_date)}</td><td>${badge(a.activity_status)}</td>
-            <td>${s.participants ?? 0}</td><td>${s.accepted ?? 0}</td><td>${s.deferred ?? 0}</td><td>${s.rejected ?? 0}</td><td>${s.completed ?? 0}</td></tr>`;
+        return \`<tr><td>\${escapeHTML(a.activity_name)}</td><td>\${escapeHTML(a.activity_date)}</td><td>\${badge(a.activity_status)}</td>
+            <td>\${s.participants ?? 0}</td><td>\${s.accepted ?? 0}</td><td>\${s.deferred ?? 0}</td><td>\${s.rejected ?? 0}</td><td>\${s.completed ?? 0}</td></tr>\`;
     }).join("") : empty(8, "No activities.");
  
     const staffRows = state.assignments.map(x => {
         const a = activityById(x.activity_id), s = staffById(x.staff_id);
-        return a && s ? `<tr><td>${escapeHTML(a.activity_name)}</td><td>${escapeHTML(a.activity_date)}</td><td>${escapeHTML(s.full_name)}</td><td>${escapeHTML(ROLES[s.role])}</td></tr>` : "";
+        return a && s ? \`<tr><td>\${escapeHTML(a.activity_name)}</td><td>\${escapeHTML(a.activity_date)}</td><td>\${escapeHTML(s.full_name)}</td><td>\${escapeHTML(ROLES[s.role])}</td></tr>\` : "";
     }).join("");
     $("report-staff").innerHTML = staffRows || empty(4, "No staff assignments.");
  
@@ -1564,10 +1564,10 @@ function renderReports() {
             if (!d || !a) return "";
             const scr = state.screenings.find(s => s.participation_id === x.participation_id);
             const don = state.donations.find(s => s.participation_id === x.participation_id);
-            return `<tr><td>${escapeHTML(fullName(d))}</td><td>${escapeHTML(a.activity_name)}</td><td>${escapeHTML(a.activity_date)}</td>
-                <td>${badge(x.participation_status)}</td>
-                <td>${scr && scr.screening_outcome ? badge(scr.screening_outcome) : '<span class="muted">-</span>'}</td>
-                <td>${don ? badge(don.donation_status) : '<span class="muted">-</span>'}</td></tr>`;
+            return \`<tr><td>\${escapeHTML(fullName(d))}</td><td>\${escapeHTML(a.activity_name)}</td><td>\${escapeHTML(a.activity_date)}</td>
+                <td>\${badge(x.participation_status)}</td>
+                <td>\${scr && scr.screening_outcome ? badge(scr.screening_outcome) : '<span class="muted">-</span>'}</td>
+                <td>\${don ? badge(don.donation_status) : '<span class="muted">-</span>'}</td></tr>\`;
         }).sort().join("");
         $("report-history").innerHTML = rows || empty(6, "No participation yet.");
     }
@@ -1577,13 +1577,13 @@ function renderSelects() {
     // Donor form: join an activity while registering
     const open = state.activities.filter(a => a.activity_status === "planned" || a.activity_status === "ongoing");
     $("join-activity").innerHTML = '<option value="">Do not add to an activity now</option>' +
-        open.map(a => `<option value="${a.activity_id}">${escapeHTML(a.activity_name)} (${a.activity_date})</option>`).join("");
+        open.map(a => \`<option value="\${a.activity_id}">\${escapeHTML(a.activity_name)} (\${a.activity_date})</option>\`).join("");
 }
  
 function fillParticipationSelect(selectId, items, selectedId) {
     const sel = $(selectId);
     sel.innerHTML = items.length
-        ? items.map(x => `<option value="${x.participation_id}">${escapeHTML(participationLabel(x.participation_id))}</option>`).join("")
+        ? items.map(x => \`<option value="\${x.participation_id}">\${escapeHTML(participationLabel(x.participation_id))}</option>\`).join("")
         : '<option value="">No eligible participation</option>';
     if (selectedId) sel.value = selectedId;
 }
@@ -1775,7 +1775,7 @@ $("new-donor").addEventListener("submit", e => {
             && d.first_name.toLowerCase() === payload.first_name.toLowerCase()
             && d.last_name.toLowerCase() === payload.last_name.toLowerCase()
             && d.birthdate === payload.birthdate);
-        if (dup && !confirm(`A donor with the same name and birthdate already exists (DON-${pad(dup.donor_id)}). Save anyway?`)) return;
+        if (dup && !confirm(\`A donor with the same name and birthdate already exists (DON-\${pad(dup.donor_id)}). Save anyway?\`)) return;
  
         if (id) {
             await api("PATCH", "/api/donors/" + id, payload);
@@ -1939,7 +1939,7 @@ $("donor-search").addEventListener("input", renderDonors);
     if (!data.session) showLogin();
     // If a session exists, onAuthStateChange (INITIAL_SESSION) starts it.
 })();
-
+`;
 
 app.get('/', (req, res) => res.type('html').send(INDEX_HTML));
 app.get('/styles.css', (req, res) => res.type('css').send(STYLES_CSS));
