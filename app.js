@@ -91,7 +91,7 @@ const isPositiveInt = (n) =>
 
 // Wraps async handlers so errors reach the central error handler.
 const handler = (fn) =>
-  (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
+  (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 const PRIMARY_KEYS = {
   staff_profiles: 'id',
@@ -1961,269 +1961,420 @@ app.get('/styles.css', (req, res) => res.type('css').send(STYLES_CSS));
 app.get('/app.js', (req, res) => res.type('js').send(CLIENT_JS));
 
 // ==========================================
-// API: ADMIN / HEALTH / SUMMARY / RESET
+// AUTH: verify Supabase token, load role from staff_profiles
+// ==========================================
+const ROLE_NAMES = ['administrator', 'coordinator', 'registration_staff', 'medical_personnel', 'donation_staff'];
+
+async function authenticate(req) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  if (!token) throw new HttpError(401, 'Please sign in.');
+
+  const { data, error } = await db.auth.getUser(token);
+  if (error || !data || !data.user) throw new HttpError(401, 'Session expired. Please sign in again.');
+
+  const { data: profile, error: pErr } = await db
+    .from('staff_profiles')
+    .select('*')
+    .eq('id', data.user.id)
+    .maybeSingle();
+  if (pErr) throw pErr;
+  if (!profile) {
+    throw new HttpError(403, 'Your login has no staff profile yet. Ask an administrator to create one.');
+  }
+  if (profile.account_status !== 'active') throw new HttpError(403, 'This staff account is inactive.');
+  return profile;
+}
+
+// Every /api route except /api/health requires a valid login.
+app.use('/api', handler(async (req, res, next) => {
+  if (req.path === '/health') return next();
+  req.user = await authenticate(req);
+  next();
+}));
+
+// Role guard
+const allow = (...roles) => (req, res, next) => {
+  if (!roles.includes(req.user.role)) return next(new HttpError(403, 'Your role is not allowed to do this.'));
+  next();
+};
+
+const ADMIN = 'administrator', COORD = 'coordinator', REG = 'registration_staff',
+      MED = 'medical_personnel', DON = 'donation_staff';
+
+const pick = (body, fields) => {
+  const out = {};
+  for (const f of fields) if (body[f] !== undefined) out[f] = body[f];
+  return out;
+};
+
+const intParam = (v, label = 'ID') => {
+  const n = Number(v);
+  if (!Number.isSafeInteger(n) || n <= 0) throw new HttpError(400, `Invalid ${label}.`);
+  return n;
+};
+
+function dbFail(error, fallback) {
+  if (!error) return;
+  if (error.code === '23505') throw new HttpError(400, fallback || 'That record already exists.');
+  if (error.code === '23503') throw new HttpError(409, 'This record is linked to other records and cannot be changed or deleted.');
+  if (error.code === '23514' || error.code === '22P02') throw new HttpError(400, 'One of the values is not valid.');
+  throw error;
+}
+
+async function updateRow(table, idValue, fields, res, notFoundMsg) {
+  const pk = PRIMARY_KEYS[table];
+  const { data, error } = await db.from(table).update(fields).eq(pk, idValue).select().maybeSingle();
+  dbFail(error);
+  if (!data) throw new HttpError(404, notFoundMsg || 'Record not found.');
+  res.json(data);
+}
+
+// ==========================================
+// API: ME / HEALTH / SUMMARY / RESET
 // ==========================================
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+app.get('/api/me', handler(async (req, res) => {
+  const { id, full_name, role, account_status } = req.user;
+  res.json({ id, full_name, role, account_status });
+}));
+
 app.get('/api/summary', handler(async (req, res) => {
-  const [activities, donors, screenings, donations] = await Promise.all([
+  const [activities, donors, screenings, completed] = await Promise.all([
     countRows('mbd_activities'),
     countRows('donors'),
     countRows('screening_records'),
     countRows('donation_records', (q) => q.eq('donation_status', 'completed'))
   ]);
-  res.json({ activities, donors, screenings, donations });
+  res.json({ activities, donors, screenings, completed_donations: completed });
 }));
 
-// Calls reset_demo_data() defined in schema.sql
-app.post('/api/reset', handler(async (req, res) => {
+app.get('/api/reports/activity-summary', handler(async (req, res) => {
+  const [activities, parts, screenings, donations] = await Promise.all([
+    listAll('mbd_activities'),
+    listAll('activity_donors'),
+    listAll('screening_records'),
+    listAll('donation_records')
+  ]);
+  const activityOf = new Map(parts.map((p) => [p.participation_id, p.activity_id]));
+  const rows = activities.map((a) => ({
+    activity_id: a.activity_id,
+    participants: parts.filter((p) => p.activity_id === a.activity_id).length,
+    accepted: 0, deferred: 0, rejected: 0, completed: 0
+  }));
+  const byId = new Map(rows.map((r) => [r.activity_id, r]));
+  for (const s of screenings) {
+    const r = byId.get(activityOf.get(s.participation_id));
+    if (r && r[s.screening_outcome] !== undefined) r[s.screening_outcome]++;
+  }
+  for (const d of donations) {
+    const r = byId.get(activityOf.get(d.participation_id));
+    if (r && d.donation_status === 'completed') r.completed++;
+  }
+  res.json(rows);
+}));
+
+app.post('/api/reset', allow(ADMIN), handler(async (req, res) => {
   const { error } = await db.rpc('reset_demo_data');
   if (error) throw error;
   res.json({ ok: true });
 }));
 
 // ==========================================
+// API: STAFF PROFILES
+// ==========================================
+app.get('/api/staff', handler(async (req, res) => {
+  res.json(await listAll('staff_profiles'));
+}));
+
+app.post('/api/staff', allow(ADMIN), handler(async (req, res) => {
+  const id = text(req.body.id);
+  const fullName = text(req.body.full_name);
+  const role = text(req.body.role);
+  const status = text(req.body.account_status) || 'active';
+  if (!/^[0-9a-fA-F-]{36}$/.test(id)) throw new HttpError(400, 'A valid Supabase user UUID is required.');
+  if (!fullName) throw new HttpError(400, 'Full name is required.');
+  if (!ROLE_NAMES.includes(role)) throw new HttpError(400, 'Invalid role.');
+  if (!['active', 'inactive'].includes(status)) throw new HttpError(400, 'Invalid account status.');
+  const { data, error } = await db
+    .from('staff_profiles')
+    .insert({ id, full_name: fullName, role, account_status: status })
+    .select().single();
+  dbFail(error, 'A profile for this user already exists.');
+  res.status(201).json(data);
+}));
+
+app.patch('/api/staff/:id', allow(ADMIN), handler(async (req, res) => {
+  const f = pick(req.body, ['full_name', 'role', 'account_status']);
+  if (f.role !== undefined && !ROLE_NAMES.includes(f.role)) throw new HttpError(400, 'Invalid role.');
+  if (f.account_status !== undefined && !['active', 'inactive'].includes(f.account_status)) throw new HttpError(400, 'Invalid account status.');
+  if (req.params.id === req.user.id && ((f.role && f.role !== ADMIN) || f.account_status === 'inactive')) {
+    throw new HttpError(400, 'You cannot remove your own administrator access.');
+  }
+  await updateRow('staff_profiles', req.params.id, f, res, 'Staff profile not found.');
+}));
+
+// ==========================================
 // API: ACTIVITIES
 // ==========================================
+const ACTIVITY_STATUSES = ['planned', 'ongoing', 'completed', 'cancelled'];
+
+function activityFields(body) {
+  const f = {
+    activity_name: text(body.activity_name),
+    location: text(body.location),
+    activity_date: text(body.activity_date),
+    start_time: text(body.start_time),
+    end_time: text(body.end_time),
+    activity_status: text(body.activity_status) || 'planned'
+  };
+  if (!f.activity_name || !f.location || !f.activity_date || !f.start_time || !f.end_time) {
+    throw new HttpError(400, 'Name, location, date, start time and end time are required.');
+  }
+  if (!isIsoDate(f.activity_date)) throw new HttpError(400, 'Invalid date.');
+  if (f.end_time <= f.start_time) throw new HttpError(400, 'End time must be after start time.');
+  if (!ACTIVITY_STATUSES.includes(f.activity_status)) throw new HttpError(400, 'Invalid activity status.');
+  return f;
+}
+
 app.get('/api/activities', handler(async (req, res) => {
-   res.json(await listAll('mbd_activities'));
- }));
+  res.json(await listAll('mbd_activities'));
+}));
 
- app.post('/api/activities', handler(async (req, res) => {
-   const name = text(req.body.name);
-   const date = text(req.body.date);
-   const venue = text(req.body.venue);
-   const startTime = text(req.body.startTime);
-   const endTime = text(req.body.endTime);
+app.post('/api/activities', allow(ADMIN, COORD), handler(async (req, res) => {
+  const { data, error } = await db.from('mbd_activities').insert(activityFields(req.body)).select().single();
+  dbFail(error);
+  res.status(201).json(data);
+}));
 
-   if (!name || !date || !venue || !startTime || !endTime) {
-     throw new HttpError(
-       400,
-       'Name, date, venue, start time and end time are required.'
-     );
-   }
+app.patch('/api/activities/:id', allow(ADMIN, COORD), handler(async (req, res) => {
+  await updateRow('mbd_activities', intParam(req.params.id), activityFields(req.body), res, 'Activity not found.');
+}));
 
-   if (!isIsoDate(date)) {
-     throw new HttpError(400, 'Invalid date.');
-   }
-
-   const { data, error } = await db
-     .from('mbd_activities')
-     .insert({
-       activity_name: name,
-       location: venue,
-       activity_date: date,
-       start_time: startTime,
-       end_time: endTime,
-       activity_status: 'planned'
-     })
-     .select()
-     .single();
-
-   if (error) throw error;
-   res.status(201).json(data);
- }));
+app.delete('/api/activities/:id', allow(ADMIN, COORD), handler(async (req, res) => {
+  const id = intParam(req.params.id);
+  const { error } = await db.from('mbd_activities').delete().eq('activity_id', id);
+  dbFail(error);
+  res.json({ ok: true });
+}));
 
 // ==========================================
-// API: DONORS PARTICIPATION
+// API: STAFF ASSIGNMENTS
 // ==========================================
+app.get('/api/assignments', handler(async (req, res) => {
+  res.json(await listAll('activity_staff_assignments'));
+}));
 
- app.get('/api/participations', handler(async (req, res) => {
-   res.json(await listAll('activity_donors'));
- }));
+app.post('/api/assignments', allow(ADMIN, COORD), handler(async (req, res) => {
+  const activityId = intParam(req.body.activity_id, 'activity');
+  const staffId = text(req.body.staff_id);
+  if (!(await rowExists('mbd_activities', activityId))) throw new HttpError(400, 'Unknown activity.');
+  if (!(await rowExists('staff_profiles', staffId))) throw new HttpError(400, 'Unknown staff member.');
+  const { data, error } = await db
+    .from('activity_staff_assignments')
+    .insert({ activity_id: activityId, staff_id: staffId })
+    .select().single();
+  dbFail(error, 'This staff member is already assigned to the activity.');
+  res.status(201).json(data);
+}));
 
- app.post('/api/participations', handler(async (req, res) => {
-   const donorId = Number(req.body.donorId);
-   const activityId = Number(req.body.activityId);
+app.delete('/api/assignments/:id', allow(ADMIN, COORD), handler(async (req, res) => {
+  const { error } = await db.from('activity_staff_assignments').delete().eq('assignment_id', intParam(req.params.id));
+  dbFail(error);
+  res.json({ ok: true });
+}));
 
-   if (
-     !Number.isSafeInteger(donorId) ||
-     donorId <= 0 ||
-     !(await rowExists('donors', donorId))
-   ) {
-     throw new HttpError(400, 'Unknown donor.');
-   }
+// ==========================================
+// API: DONORS
+// ==========================================
+const DONOR_READERS = [ADMIN, REG, MED, DON];
+const SEXES = ['female', 'male', 'other', 'prefer_not_to_say'];
+const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-   if (
-     !Number.isSafeInteger(activityId) ||
-     activityId <= 0 ||
-     !(await rowExists('mbd_activities', activityId))
-   ) {
-     throw new HttpError(400, 'Unknown activity.');
-   }
+function donorFields(body) {
+  const f = {
+    first_name: text(body.first_name),
+    middle_name: text(body.middle_name) || null,
+    last_name: text(body.last_name),
+    birthdate: text(body.birthdate),
+    sex: text(body.sex) || null,
+    blood_type: text(body.blood_type) || null,
+    contact_number: text(body.contact_number) || null,
+    address: text(body.address) || null,
+    donor_status: text(body.donor_status) || 'active',
+    consent_given: body.consent_given === true
+  };
+  if (!f.first_name || !f.last_name || !f.birthdate) throw new HttpError(400, 'First name, last name and birthdate are required.');
+  if (!isIsoDate(f.birthdate)) throw new HttpError(400, 'Invalid birthdate.');
+  if (f.sex && !SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
+  if (f.blood_type && !BLOOD_TYPES.includes(f.blood_type)) throw new HttpError(400, 'Invalid blood type.');
+  if (!['active', 'inactive'].includes(f.donor_status)) throw new HttpError(400, 'Invalid donor status.');
+  return f;
+}
 
-   const { data, error } = await db
-     .from('activity_donors')
-     .insert({
-       donor_id: donorId,
-       activity_id: activityId,
-       participation_status: 'registered'
-     })
-     .select()
-     .single();
+app.get('/api/donors', allow(...DONOR_READERS), handler(async (req, res) => {
+  res.json(await listAll('donors'));
+}));
 
-   if (error) {
-     if (error.code === '23505') {
-       throw new HttpError(
-         400,
-         'This donor is already registered for this activity.'
-       );
-     }
-     throw error;
-   }
+app.post('/api/donors', allow(ADMIN, REG), handler(async (req, res) => {
+  const fields = donorFields(req.body);
+  if (fields.consent_given) fields.consent_recorded_at = new Date().toISOString();
+  const activityId = req.body.activity_id ? intParam(req.body.activity_id, 'activity') : null;
+  if (activityId && !(await rowExists('mbd_activities', activityId))) throw new HttpError(400, 'Unknown activity.');
 
-   res.status(201).json(data);
- }));
+  const { data: donor, error } = await db.from('donors').insert(fields).select().single();
+  dbFail(error);
+
+  if (activityId) {
+    const { error: pErr } = await db.from('activity_donors')
+      .insert({ donor_id: donor.donor_id, activity_id: activityId, participation_status: 'registered' });
+    if (pErr) {
+      await db.from('donors').delete().eq('donor_id', donor.donor_id); // undo so both save together
+      dbFail(pErr);
+    }
+  }
+  res.status(201).json(donor);
+}));
+
+app.patch('/api/donors/:id', allow(ADMIN, REG), handler(async (req, res) => {
+  const id = intParam(req.params.id);
+  const fields = donorFields(req.body);
+  const { data: current, error: cErr } = await db.from('donors').select('consent_given').eq('donor_id', id).maybeSingle();
+  if (cErr) throw cErr;
+  if (!current) throw new HttpError(404, 'Donor not found.');
+  if (fields.consent_given && !current.consent_given) fields.consent_recorded_at = new Date().toISOString();
+  if (!fields.consent_given) fields.consent_recorded_at = null;
+  await updateRow('donors', id, fields, res, 'Donor not found.');
+}));
+
+// ==========================================
+// API: PARTICIPATIONS
+// ==========================================
+const PARTICIPATION_STATUSES = ['registered', 'attended', 'withdrawn', 'no_show'];
+
+app.get('/api/participations', allow(...DONOR_READERS), handler(async (req, res) => {
+  res.json(await listAll('activity_donors'));
+}));
+
+app.post('/api/participations', allow(ADMIN, REG), handler(async (req, res) => {
+  const donorId = intParam(req.body.donor_id, 'donor');
+  const activityId = intParam(req.body.activity_id, 'activity');
+  if (!(await rowExists('donors', donorId))) throw new HttpError(400, 'Unknown donor.');
+  if (!(await rowExists('mbd_activities', activityId))) throw new HttpError(400, 'Unknown activity.');
+  const { data, error } = await db.from('activity_donors')
+    .insert({ donor_id: donorId, activity_id: activityId, participation_status: 'registered' })
+    .select().single();
+  dbFail(error, 'This donor is already registered for this activity.');
+  res.status(201).json(data);
+}));
+
+app.patch('/api/participations/:id', allow(ADMIN, REG), handler(async (req, res) => {
+  const status = text(req.body.participation_status);
+  if (!PARTICIPATION_STATUSES.includes(status)) throw new HttpError(400, 'Invalid attendance status.');
+  await updateRow('activity_donors', intParam(req.params.id), { participation_status: status }, res, 'Participation not found.');
+}));
+
+app.delete('/api/participations/:id', allow(ADMIN, REG), handler(async (req, res) => {
+  const { error } = await db.from('activity_donors').delete().eq('participation_id', intParam(req.params.id));
+  dbFail(error);
+  res.json({ ok: true });
+}));
 
 // ==========================================
 // API: SCREENINGS
-// Outcomes are recorded by authorized personnel; this app never decides eligibility.
+// Outcomes are recorded by Medical Personnel; this app never decides eligibility.
 // ==========================================
 const SCREENING_OUTCOMES = ['accepted', 'deferred', 'rejected'];
 
-app.get('/api/screenings', handler(async (req, res) => {
+function screeningFields(body) {
+  const f = {
+    systolic_bp: body.systolic_bp ?? null,
+    diastolic_bp: body.diastolic_bp ?? null,
+    weight_kg: body.weight_kg ?? null,
+    hemoglobin_g_dl: body.hemoglobin_g_dl ?? null,
+    screening_outcome: text(body.screening_outcome),
+    outcome_reason: text(body.outcome_reason) || null,
+    notes: text(body.notes) || null
+  };
+  if (!SCREENING_OUTCOMES.includes(f.screening_outcome)) throw new HttpError(400, 'Outcome must be accepted, deferred, or rejected.');
+  if (f.screening_outcome === 'deferred' && !f.outcome_reason) throw new HttpError(400, 'A reason is required for a deferred screening.');
+  if (f.screening_outcome === 'accepted') f.outcome_reason = null;
+  if (f.systolic_bp !== null && f.diastolic_bp !== null && Number(f.diastolic_bp) >= Number(f.systolic_bp)) {
+    throw new HttpError(400, 'Diastolic pressure must be lower than systolic pressure.');
+  }
+  return f;
+}
+
+app.get('/api/screenings', allow(ADMIN, MED, DON), handler(async (req, res) => {
+  if (req.user.role === DON) {
+    // Donation staff: accepted outcomes only, no measurements or notes.
+    const { data, error } = await db.from('screening_records')
+      .select('screening_id, participation_id, screening_outcome')
+      .eq('screening_outcome', 'accepted').order('screening_id');
+    if (error) throw error;
+    return res.json(data);
+  }
   res.json(await listAll('screening_records'));
 }));
 
-app.post('/api/screenings', handler(async (req, res) => {
-  const participationId = Number(req.body.participationId);
-  const outcome = text(req.body.outcome);
-  const outcomeReason = text(req.body.outcomeReason);
-  const notes = text(req.body.notes);
-
-  if (!Number.isSafeInteger(participationId) || participationId <= 0) {
-    throw new HttpError(400, 'A valid participation ID is required.');
-  }
-
-  if (!(await rowExists('activity_donors', participationId))) {
-    throw new HttpError(400, 'Unknown participation record.');
-  }
-
-  if (!SCREENING_OUTCOMES.includes(outcome)) {
-    throw new HttpError(
-      400,
-      'Outcome must be accepted, deferred, or rejected.'
-    );
-  }
-
-  if (outcome === 'deferred' && !outcomeReason) {
-    throw new HttpError(
-      400,
-      'A reason is required for a deferred screening.'
-    );
-  }
-
-  const screening = {
-    participation_id: participationId,
-    screening_outcome: outcome,
-    outcome_reason: outcomeReason || null,
-    notes: notes || null
-  };
-
-  const { data, error } = await db
-    .from('screening_records')
-    .insert(screening)
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === '23505') {
-      throw new HttpError(
-        400,
-        'A screening record already exists for this participation.'
-      );
-    }
-    throw error;
-  }
-
+app.post('/api/screenings', allow(MED), handler(async (req, res) => {
+  const participationId = intParam(req.body.participation_id, 'participation');
+  if (!(await rowExists('activity_donors', participationId))) throw new HttpError(400, 'Unknown participation record.');
+  const { data, error } = await db.from('screening_records')
+    .insert({ ...screeningFields(req.body), participation_id: participationId, screened_by: req.user.id })
+    .select().single();
+  dbFail(error, 'A screening record already exists for this participation.');
   res.status(201).json(data);
+}));
+
+app.patch('/api/screenings/:id', allow(MED), handler(async (req, res) => {
+  await updateRow('screening_records', intParam(req.params.id), { ...screeningFields(req.body), screened_by: req.user.id }, res, 'Screening not found.');
 }));
 
 // ==========================================
 // API: DONATIONS
 // ==========================================
-const UNIQUE_VIOLATION = '23505';
-const presentDonation = (r) => ({ id: r.id, donorId: r.donor_id, activityId: r.activity_id, status: r.status });
+function donationFields(body) {
+  const status = text(body.donation_status);
+  const volume = body.volume_ml === null || body.volume_ml === undefined || body.volume_ml === '' ? null : Number(body.volume_ml);
+  const f = { bag_serial_no: text(body.bag_serial_no), volume_ml: volume, donation_status: status };
+  if (!f.bag_serial_no) throw new HttpError(400, 'Bag serial number is required.');
+  if (!['completed', 'not_completed'].includes(status)) throw new HttpError(400, 'Donation status must be completed or not_completed.');
+  if (status === 'completed' && (!Number.isFinite(volume) || volume <= 0)) {
+    throw new HttpError(400, 'A completed donation requires a volume above 0 ml.');
+  }
+  if (status !== 'completed' && volume !== null && !Number.isFinite(volume)) throw new HttpError(400, 'Invalid volume.');
+  return f;
+}
 
-app.get('/api/donations', handler(async (req, res) => {
+async function requireAccepted(participationId) {
+  const { data, error } = await db.from('screening_records')
+    .select('screening_outcome').eq('participation_id', participationId).maybeSingle();
+  if (error) throw error;
+  if (!data || data.screening_outcome !== 'accepted') {
+    throw new HttpError(400, 'A donation can be recorded only for a participation with an Accepted screening outcome.');
+  }
+}
+
+app.get('/api/donations', allow(ADMIN, MED, DON), handler(async (req, res) => {
   res.json(await listAll('donation_records'));
 }));
 
-app.post('/api/donations', handler(async (req, res) => {
-  const participationId = Number(req.body.participationId);
-  const bagSerialNo = text(req.body.bagSerialNo);
-  const volumeMl = Number(req.body.volumeMl);
-  const donationStatus = text(req.body.donationStatus);
-
-  if (!Number.isSafeInteger(participationId) || participationId <= 0) {
-    throw new HttpError(400, 'A valid participation ID is required.');
-  }
-
-  if (!(await rowExists('activity_donors', participationId))) {
-    throw new HttpError(400, 'Unknown participation record.');
-  }
-
-  if (!bagSerialNo) {
-    throw new HttpError(400, 'Bag serial number is required.');
-  }
-
-  if (!['completed', 'not_completed'].includes(donationStatus)) {
-    throw new HttpError(
-      400,
-      'Donation status must be completed or not_completed.'
-    );
-  }
-
-  if (
-    donationStatus === 'completed' &&
-    (!Number.isFinite(volumeMl) || volumeMl <= 0)
-  ) {
-    throw new HttpError(
-      400,
-      'A completed donation requires a valid donation volume.'
-    );
-  }
-
-  const { data: screening, error: screeningError } = await db
-    .from('screening_records')
-    .select('screening_outcome')
-    .eq('participation_id', participationId)
-    .maybeSingle();
-
-  if (screeningError) throw screeningError;
-
-  if (
-    donationStatus === 'completed' &&
-    (!screening || screening.screening_outcome !== 'accepted')
-  ) {
-    throw new HttpError(
-      400,
-      'A completed donation requires an accepted screening record.'
-    );
-  }
-
-  const { data, error } = await db
-    .from('donation_records')
-    .insert({
-      participation_id: participationId,
-      bag_serial_no: bagSerialNo,
-      volume_ml: donationStatus === 'completed' ? volumeMl : null,
-      donation_status: donationStatus
-    })
-    .select()
-    .single();
-
-  if (error) {
-    if (error.code === '23505') {
-      throw new HttpError(
-        400,
-        'This participation already has a donation record, or the bag serial number is already used.'
-      );
-    }
-    throw error;
-  }
-
+app.post('/api/donations', allow(DON), handler(async (req, res) => {
+  const participationId = intParam(req.body.participation_id, 'participation');
+  if (!(await rowExists('activity_donors', participationId))) throw new HttpError(400, 'Unknown participation record.');
+  const fields = donationFields(req.body);
+  await requireAccepted(participationId);
+  const { data, error } = await db.from('donation_records')
+    .insert({ ...fields, participation_id: participationId, recorded_by: req.user.id })
+    .select().single();
+  dbFail(error, 'This participation already has a donation record, or the bag serial number is already used.');
   res.status(201).json(data);
+}));
+
+app.patch('/api/donations/:id', allow(DON), handler(async (req, res) => {
+  await updateRow('donation_records', intParam(req.params.id), donationFields(req.body), res, 'Donation not found.');
 }));
 
 // ==========================================
