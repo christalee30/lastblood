@@ -189,10 +189,31 @@ const INDEX_HTML = `<!DOCTYPE html>
     <title>Mobile Blood Donation Management System</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-
+ 
 <body>
-<div class="layout">
-
+ 
+<!-- LOGIN -->
+<div class="login-view" id="login-view">
+    <form class="login-card" id="login-form">
+        <div class="brand-symbol">+</div>
+        <h1>MBDMS</h1>
+        <p class="muted">Mobile Blood Donation Management System<br>Staff sign in</p>
+        <div class="notice error hidden" id="login-error"></div>
+        <div class="field">
+            <label for="login-email">Email</label>
+            <input id="login-email" type="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+            <label for="login-password">Password</label>
+            <input id="login-password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="button" type="submit" id="login-submit">Sign In</button>
+        <p class="muted small-text">Accounts are created by an administrator. There is no public sign-up.</p>
+    </form>
+</div>
+ 
+<div class="layout hidden" id="app-view">
+ 
     <!-- SIDEBAR -->
     <aside class="sidebar">
         <div class="brand">
@@ -202,24 +223,16 @@ const INDEX_HTML = `<!DOCTYPE html>
                 <p>Mobile Blood Donation Management System</p>
             </div>
         </div>
-
+ 
         <p class="nav-title">MAIN MENU</p>
-
-        <nav class="nav-links">
-            <button class="nav-link active" data-page="dashboard"><span class="nav-icon">▦</span> Dashboard</button>
-            <button class="nav-link" data-page="activities"><span class="nav-icon">▣</span> MBD Activities</button>
-            <button class="nav-link" data-page="donors"><span class="nav-icon">♙</span> Donor Records</button>
-            <button class="nav-link" data-page="screening"><span class="nav-icon">✓</span> Medical Screening</button>
-            <button class="nav-link" data-page="donations"><span class="nav-icon">♥</span> Donation Records</button>
-            <button class="nav-link" data-page="reports"><span class="nav-icon">▤</span> Reports</button>
-        </nav>
-
+        <nav class="nav-links" id="nav-links"></nav>
+ 
         <div class="sidebar-note">
-            <strong>Staff Portal</strong><br>
-            Manage mobile blood donation activities and records in one place.
+            <strong id="side-role">Staff Portal</strong><br>
+            You only see the pages and actions your role allows.
         </div>
     </aside>
-
+ 
     <!-- MAIN -->
     <main class="main">
         <header class="topbar">
@@ -227,39 +240,35 @@ const INDEX_HTML = `<!DOCTYPE html>
                 <h1 id="page-title">Dashboard</h1>
                 <p>Mobile Blood Donation Management System</p>
             </div>
-
             <div class="staff-info">
-                <div class="avatar">SA</div>
+                <div class="avatar" id="staff-avatar">--</div>
                 <div class="staff-label">
-                    <strong>Staff Administrator</strong>
-                    <p style="color:#747b87; margin-top:4px;">Demo account</p>
+                    <strong id="staff-name">Staff</strong>
+                    <p class="muted" id="staff-role">Role</p>
                 </div>
+                <button class="button secondary small" data-action="logout">Sign Out</button>
             </div>
         </header>
-
+ 
         <div class="content">
-
             <div class="notice">
-                <strong>Prototype notice:</strong> This demo uses fictional records.
-                It is not an official Philippine Red Cross system. Do not enter real
-                donor or medical information.
+                <strong>Prototype notice:</strong> Student project. Use fictional records only.
+                Not an official Philippine Red Cross system.
             </div>
-
             <div class="notice error hidden" id="error-box"></div>
-
+            <div class="notice success hidden" id="success-box"></div>
+ 
             <!-- DASHBOARD -->
             <section class="page" id="dashboard">
                 <div class="welcome">
                     <div>
-                        <h2>Welcome to MBDMS</h2>
-                        <p>Manage activities, donor registration, screening records,
-                           and completed donations.</p>
+                        <h2 id="welcome-title">Welcome to MBDMS</h2>
+                        <p id="welcome-text">Manage activities, donors, screening and donations.</p>
                     </div>
                     <div class="welcome-icon">♥</div>
                 </div>
-
+ 
                 <div class="section-heading"><h2>System Overview</h2></div>
-
                 <div class="stats">
                     <div class="stat-card">
                         <div class="stat-top"><span class="stat-label">MBD Activities</span><span class="stat-icon">▣</span></div>
@@ -269,7 +278,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                     <div class="stat-card">
                         <div class="stat-top"><span class="stat-label">Registered Donors</span><span class="stat-icon">♙</span></div>
                         <div class="stat-number" id="donor-count">0</div>
-                        <p class="stat-description">Fictional demo records</p>
+                        <p class="stat-description">Donor records</p>
                     </div>
                     <div class="stat-card">
                         <div class="stat-top"><span class="stat-label">Screening Records</span><span class="stat-icon">✓</span></div>
@@ -282,7 +291,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                         <p class="stat-description">Recorded completions</p>
                     </div>
                 </div>
-
+ 
                 <div class="panel">
                     <div class="panel-header">
                         <h2>Upcoming Activities</h2>
@@ -290,44 +299,62 @@ const INDEX_HTML = `<!DOCTYPE html>
                     </div>
                     <div class="table-wrap">
                         <table>
-                            <thead><tr><th>Activity</th><th>Date</th><th>Venue</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Activity</th><th>Date</th><th>Time</th><th>Location</th><th>Status</th></tr></thead>
                             <tbody id="dashboard-activities"></tbody>
                         </table>
                     </div>
                 </div>
             </section>
-
+ 
             <!-- ACTIVITIES -->
             <section class="page hidden" id="activities">
                 <div class="section-heading">
                     <h2>Mobile Blood Donation Activities</h2>
-                    <button class="button" data-toggle="activity-form">+ Add Activity</button>
+                    <button class="button" data-new="activity" id="btn-new-activity">+ Add Activity</button>
                 </div>
-
+ 
                 <div class="panel hidden" id="activity-form">
-                    <div class="panel-header"><h2>Create Activity</h2></div>
+                    <div class="panel-header"><h2 id="activity-form-title">Create Activity</h2></div>
                     <form id="new-activity">
+                        <input type="hidden" id="activity-id">
                         <div class="form-grid">
                             <div class="field full">
                                 <label for="activity-name">Activity Name</label>
                                 <input id="activity-name" required>
+                            </div>
+                            <div class="field full">
+                                <label for="activity-location">Location (venue name and address)</label>
+                                <input id="activity-location" required>
                             </div>
                             <div class="field">
                                 <label for="activity-date">Date</label>
                                 <input id="activity-date" type="date" required>
                             </div>
                             <div class="field">
-                                <label for="activity-venue">Venue</label>
-                                <input id="activity-venue" required>
+                                <label for="activity-status">Status</label>
+                                <select id="activity-status" required>
+                                    <option value="planned">Planned</option>
+                                    <option value="ongoing">Ongoing</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="activity-start">Start Time</label>
+                                <input id="activity-start" type="time" required>
+                            </div>
+                            <div class="field">
+                                <label for="activity-end">End Time</label>
+                                <input id="activity-end" type="time" required>
                             </div>
                         </div>
                         <div class="form-actions">
                             <button class="button" type="submit">Save Activity</button>
-                            <button class="button secondary" type="button" data-toggle="activity-form">Cancel</button>
+                            <button class="button secondary" type="button" data-close="activity">Cancel</button>
                         </div>
                     </form>
                 </div>
-
+ 
                 <div class="panel">
                     <div class="panel-header">
                         <h2>Activity List</h2>
@@ -335,27 +362,34 @@ const INDEX_HTML = `<!DOCTYPE html>
                     </div>
                     <div class="table-wrap">
                         <table>
-                            <thead><tr><th>Activity</th><th>Date</th><th>Venue</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Activity</th><th>Date</th><th>Time</th><th>Location</th><th>Status</th><th>Participants</th><th>Actions</th></tr></thead>
                             <tbody id="activity-table"></tbody>
                         </table>
                     </div>
                 </div>
+ 
+                <div class="panel hidden" id="activity-detail"></div>
             </section>
-
+ 
             <!-- DONORS -->
             <section class="page hidden" id="donors">
                 <div class="section-heading">
                     <h2>Donor Records</h2>
-                    <button class="button" data-toggle="donor-form">+ Register Donor</button>
+                    <button class="button" data-new="donor" id="btn-new-donor">+ Register Donor</button>
                 </div>
-
+ 
                 <div class="panel hidden" id="donor-form">
-                    <div class="panel-header"><h2>Register New Donor</h2></div>
+                    <div class="panel-header"><h2 id="donor-form-title">Register New Donor</h2></div>
                     <form id="new-donor">
+                        <input type="hidden" id="donor-id">
                         <div class="form-grid">
                             <div class="field">
                                 <label for="first-name">First Name</label>
                                 <input id="first-name" required>
+                            </div>
+                            <div class="field">
+                                <label for="middle-name">Middle Name (optional)</label>
+                                <input id="middle-name">
                             </div>
                             <div class="field">
                                 <label for="last-name">Last Name</label>
@@ -366,17 +400,56 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 <input id="birthdate" type="date" required>
                             </div>
                             <div class="field">
-                                <label for="contact">Contact Number (Demo)</label>
-                                <input id="contact" placeholder="Use fictional data" required>
+                                <label for="sex">Sex (optional)</label>
+                                <select id="sex">
+                                    <option value="">Not stated</option>
+                                    <option value="female">Female</option>
+                                    <option value="male">Male</option>
+                                    <option value="other">Other</option>
+                                    <option value="prefer_not_to_say">Prefer not to say</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="blood-type">Blood Type (optional, as stated by donor)</label>
+                                <select id="blood-type">
+                                    <option value="">Not known</option>
+                                    <option>A+</option><option>A-</option>
+                                    <option>B+</option><option>B-</option>
+                                    <option>AB+</option><option>AB-</option>
+                                    <option>O+</option><option>O-</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="contact">Contact Number (optional, fictional)</label>
+                                <input id="contact">
+                            </div>
+                            <div class="field">
+                                <label for="donor-status">Donor Status</label>
+                                <select id="donor-status">
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="field full">
+                                <label for="address">Address (optional)</label>
+                                <input id="address">
+                            </div>
+                            <div class="field full check">
+                                <label><input type="checkbox" id="consent-given"> Donor has given consent to donate and to the recording of their data</label>
+                                <span class="muted small-text" id="consent-recorded-note"></span>
+                            </div>
+                            <div class="field full" id="join-activity-wrap">
+                                <label for="join-activity">Also add to activity (optional, saved together in one step)</label>
+                                <select id="join-activity"></select>
                             </div>
                         </div>
                         <div class="form-actions">
                             <button class="button" type="submit">Save Donor</button>
-                            <button class="button secondary" type="button" data-toggle="donor-form">Cancel</button>
+                            <button class="button secondary" type="button" data-close="donor">Cancel</button>
                         </div>
                     </form>
                 </div>
-
+ 
                 <div class="panel">
                     <div class="panel-header">
                         <h2>Registered Donors</h2>
@@ -384,132 +457,245 @@ const INDEX_HTML = `<!DOCTYPE html>
                     </div>
                     <div class="table-wrap">
                         <table>
-                            <thead><tr><th>Donor ID</th><th>Full Name</th><th>Birthdate</th><th>Contact (Demo)</th></tr></thead>
+                            <thead><tr><th>Donor ID</th><th>Full Name</th><th>Birthdate</th><th>Age</th><th>Sex</th><th>Blood Type</th><th>Contact</th><th>Consent</th><th>Status</th><th>Actions</th></tr></thead>
                             <tbody id="donor-table"></tbody>
                         </table>
                     </div>
                 </div>
             </section>
-
+ 
             <!-- SCREENING -->
             <section class="page hidden" id="screening">
                 <div class="section-heading">
                     <h2>Medical Screening Records</h2>
-                    <button class="button" data-toggle="screening-form">+ Record Screening</button>
+                    <button class="button" data-new="screening" id="btn-new-screening">+ Record Screening</button>
                 </div>
-
+ 
                 <div class="notice">
-                    Screening outcomes must be assessed and recorded by authorized
-                    personnel. This prototype does not determine medical eligibility.
+                    The outcome is chosen and recorded by authorized Medical Personnel.
+                    This system stores the outcome; it does not decide medical eligibility.
+                    Entered ranges only guard against typing mistakes. Diastolic must be lower than systolic.
                 </div>
-
+                <div class="notice hidden" id="screening-limited-note">
+                    Donation Staff can see only who has an Accepted outcome. Measurements and notes are not shown.
+                </div>
+ 
                 <div class="panel hidden" id="screening-form">
-                    <div class="panel-header"><h2>Record Screening Outcome</h2></div>
+                    <div class="panel-header"><h2 id="screening-form-title">Record Screening Outcome</h2></div>
                     <form id="new-screening">
+                        <input type="hidden" id="screening-id">
                         <div class="form-grid">
-                            <div class="field">
-                                <label for="screening-donor">Donor</label>
-                                <select id="screening-donor" required></select>
+                            <div class="field full">
+                                <label for="screening-participation">Participation (donor and activity)</label>
+                                <select id="screening-participation" required></select>
                             </div>
                             <div class="field">
-                                <label for="screening-activity">Activity</label>
-                                <select id="screening-activity" required></select>
+                                <label for="systolic">Systolic BP (optional)</label>
+                                <input id="systolic" type="number" min="50" max="300">
                             </div>
                             <div class="field">
-                                <label for="screening-outcome">Outcome (as assessed by authorized personnel)</label>
+                                <label for="diastolic">Diastolic BP (optional)</label>
+                                <input id="diastolic" type="number" min="30" max="200">
+                            </div>
+                            <div class="field">
+                                <label for="weight">Weight in kg (optional)</label>
+                                <input id="weight" type="number" step="0.01" min="1" max="500">
+                            </div>
+                            <div class="field">
+                                <label for="hemoglobin">Hemoglobin g/dL (optional)</label>
+                                <input id="hemoglobin" type="number" step="0.01" min="1" max="30">
+                            </div>
+                            <div class="field">
+                                <label for="screening-outcome">Outcome (as assessed by Medical Personnel)</label>
                                 <select id="screening-outcome" required>
-                                    <option value="Cleared">Cleared</option>
-                                    <option value="Not cleared">Not cleared</option>
+                                    <option value="accepted">Accepted</option>
+                                    <option value="deferred">Deferred</option>
+                                    <option value="rejected">Rejected</option>
                                 </select>
+                            </div>
+                            <div class="field">
+                                <label for="outcome-reason" id="outcome-reason-label">Reason</label>
+                                <input id="outcome-reason">
+                                <span class="muted small-text" id="outcome-reason-hint"></span>
+                            </div>
+                            <div class="field full">
+                                <label for="screening-notes">Notes (optional)</label>
+                                <input id="screening-notes">
                             </div>
                         </div>
                         <div class="form-actions">
                             <button class="button" type="submit">Save Screening</button>
-                            <button class="button secondary" type="button" data-toggle="screening-form">Cancel</button>
+                            <button class="button secondary" type="button" data-close="screening">Cancel</button>
                         </div>
                     </form>
                 </div>
-
+ 
                 <div class="panel">
                     <div class="panel-header"><h2>Screening History</h2></div>
                     <div class="table-wrap">
                         <table>
-                            <thead><tr><th>Screening ID</th><th>Donor</th><th>Activity</th><th>Outcome</th></tr></thead>
+                            <thead id="screening-head"></thead>
                             <tbody id="screening-table"></tbody>
                         </table>
                     </div>
                 </div>
             </section>
-
+ 
             <!-- DONATIONS -->
             <section class="page hidden" id="donations">
                 <div class="section-heading">
                     <h2>Donation Records</h2>
-                    <button class="button" data-toggle="donation-form">+ Record Donation</button>
+                    <button class="button" data-new="donation" id="btn-new-donation">+ Record Donation</button>
                 </div>
-
+ 
+                <div class="notice">
+                    A donation can be recorded only for a participation with an Accepted screening outcome.
+                </div>
+ 
                 <div class="panel hidden" id="donation-form">
-                    <div class="panel-header"><h2>Record Completed Donation</h2></div>
+                    <div class="panel-header"><h2 id="donation-form-title">Record Donation</h2></div>
                     <form id="new-donation">
+                        <input type="hidden" id="donation-id">
                         <div class="form-grid">
-                            <div class="field">
-                                <label for="donation-donor">Donor</label>
-                                <select id="donation-donor" required></select>
+                            <div class="field full">
+                                <label for="donation-participation">Accepted participation (donor and activity)</label>
+                                <select id="donation-participation" required></select>
                             </div>
                             <div class="field">
-                                <label for="donation-activity">Activity</label>
-                                <select id="donation-activity" required></select>
+                                <label for="bag-serial">Bag Serial No.</label>
+                                <input id="bag-serial" required>
+                            </div>
+                            <div class="field">
+                                <label for="volume">Volume (ml) - required above 0 when Completed</label>
+                                <input id="volume" type="number" min="0" max="1000">
+                            </div>
+                            <div class="field">
+                                <label for="donation-status">Donation Status</label>
+                                <select id="donation-status" required>
+                                    <option value="completed">Completed</option>
+                                    <option value="not_completed">Not completed</option>
+                                </select>
                             </div>
                         </div>
                         <div class="form-actions">
                             <button class="button" type="submit">Save Donation</button>
-                            <button class="button secondary" type="button" data-toggle="donation-form">Cancel</button>
+                            <button class="button secondary" type="button" data-close="donation">Cancel</button>
                         </div>
                     </form>
                 </div>
-
+ 
                 <div class="panel">
                     <div class="panel-header"><h2>Donation History</h2></div>
                     <div class="table-wrap">
                         <table>
-                            <thead><tr><th>Donation ID</th><th>Donor</th><th>Activity</th><th>Status</th></tr></thead>
+                            <thead><tr><th>Donation ID</th><th>Donor</th><th>Activity</th><th>Bag Serial</th><th>Volume</th><th>Status</th><th>Recorded By</th><th>Actions</th></tr></thead>
                             <tbody id="donation-table"></tbody>
                         </table>
                     </div>
                 </div>
             </section>
-
+ 
+            <!-- STAFF -->
+            <section class="page hidden" id="staff">
+                <div class="section-heading">
+                    <h2>Staff Accounts</h2>
+                    <button class="button" data-new="staff">+ Add Staff Profile</button>
+                </div>
+ 
+                <div class="notice">
+                    Create the login (email and password) in the Supabase dashboard first.
+                    Then paste that user's UUID here to give it a name and a role.
+                    Passwords are never stored in this system's tables.
+                </div>
+ 
+                <div class="panel hidden" id="staff-form">
+                    <div class="panel-header"><h2 id="staff-form-title">Add Staff Profile</h2></div>
+                    <form id="new-staff">
+                        <input type="hidden" id="staff-editing">
+                        <div class="form-grid">
+                            <div class="field full">
+                                <label for="staff-uuid">Supabase Auth User ID (UUID)</label>
+                                <input id="staff-uuid" required pattern="[0-9a-fA-F\\-]{36}">
+                            </div>
+                            <div class="field">
+                                <label for="staff-fullname">Full Name</label>
+                                <input id="staff-fullname" required>
+                            </div>
+                            <div class="field">
+                                <label for="staff-role-select">Role</label>
+                                <select id="staff-role-select" required></select>
+                            </div>
+                            <div class="field">
+                                <label for="staff-account-status">Account Status</label>
+                                <select id="staff-account-status">
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button class="button" type="submit">Save Staff Profile</button>
+                            <button class="button secondary" type="button" data-close="staff">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+ 
+                <div class="panel">
+                    <div class="panel-header"><h2>Staff List</h2></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+                            <tbody id="staff-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+ 
             <!-- REPORTS -->
             <section class="page hidden" id="reports">
                 <div class="section-heading">
                     <h2>MBD Reports</h2>
-                    <div style="display:flex; gap:8px;">
-                        <button class="button secondary" id="reset-data">Reset Demo Data</button>
-                        <button class="button" onclick="window.print()">Print Report</button>
+                    <button class="button" data-action="print">Print Report</button>
+                </div>
+ 
+                <div class="panel">
+                    <div class="panel-header"><h2>Activity Summary</h2></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Activity</th><th>Date</th><th>Status</th><th>Participants</th><th>Accepted</th><th>Deferred</th><th>Rejected</th><th>Completed Donations</th></tr></thead>
+                            <tbody id="report-summary"></tbody>
+                        </table>
                     </div>
                 </div>
-
+ 
                 <div class="panel">
-                    <div class="panel-header"><h2>Current Summary</h2></div>
-                    <div style="padding:20px; line-height:2;">
-                        <p>Total activities: <strong id="report-activities">0</strong></p>
-                        <p>Total registered donors: <strong id="report-donors">0</strong></p>
-                        <p>Total screening records: <strong id="report-screenings">0</strong></p>
-                        <p>Completed donations: <strong id="report-donations">0</strong></p>
-                        <p style="color:#747b87;font-size:12px;margin-top:12px;">
-                            These figures are calculated from the server's demo data.
-                        </p>
+                    <div class="panel-header"><h2>Staff Assignment List</h2></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Activity</th><th>Date</th><th>Staff Member</th><th>Role</th></tr></thead>
+                            <tbody id="report-staff"></tbody>
+                        </table>
+                    </div>
+                </div>
+ 
+                <div class="panel" id="report-history-panel">
+                    <div class="panel-header"><h2>Donor Participation History</h2></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Donor</th><th>Activity</th><th>Date</th><th>Attendance</th><th>Screening</th><th>Donation</th></tr></thead>
+                            <tbody id="report-history"></tbody>
+                        </table>
                     </div>
                 </div>
             </section>
-
-            <div class="footer">
-                MBDMS Student Project Prototype | Fictional Data Only
-            </div>
+ 
+            <div class="footer">MBDMS Student Project Prototype | Fictional Data Only</div>
         </div>
     </main>
 </div>
-
+ 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
