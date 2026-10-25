@@ -125,7 +125,7 @@ function explainDbError(err) {
 }
 
 async function checkConnection() {
-  const { error } = await db.from('activities').select('id', { head: true, count: 'exact' }).limit(1);
+  const { error } = await db.from('mbd_activities').select('id', { head: true, count: 'exact' }).limit(1);
   if (error) {
     console.error('Supabase connection check FAILED:', error.message || error);
     const hint = explainDbError(error);
@@ -1307,7 +1307,7 @@ app.post('/api/activities', handler(async (req, res) => {
   if (!isIsoDate(date)) throw new HttpError(400, 'Invalid date.');
 
   const { data, error } = await db
-    .from('activities')
+    .from('mbd_activities')
     .insert({ name, date, venue, status: 'Scheduled' })
     .select()
     .single();
@@ -1331,13 +1331,16 @@ app.post('/api/donors', handler(async (req, res) => {
   if (!first || !last || !birthdate || !contact) throw new HttpError(400, 'All donor fields are required.');
   if (!isIsoDate(birthdate)) throw new HttpError(400, 'Invalid birthdate.');
 
-  const { data, error } = await db
-    .from('donors')
-    .insert({ first, last, birthdate, contact })
-    .select()
-    .single();
-  if (error) throw error;
-  res.status(201).json(data);
+const { data, error } = await db
+  .from('donors')
+  .insert({
+    first_name: first,
+    last_name: last,
+    birthdate: birthdate,
+    contact_number: contact
+  })
+  .select()
+  .single();
 }));
 
 // ==========================================
@@ -1361,7 +1364,7 @@ app.post('/api/screenings', handler(async (req, res) => {
   if (!OUTCOMES.includes(outcome)) throw new HttpError(400, 'Invalid outcome.');
 
   const { data, error } = await db
-    .from('screenings')
+    .from('screening_records')
     .insert({ donor_id: donorId, activity_id: activityId, outcome })
     .select()
     .single();
@@ -1388,7 +1391,7 @@ app.post('/api/donations', handler(async (req, res) => {
   if (!isPositiveInt(activityId) || !(await rowExists('activities', activityId))) throw new HttpError(400, 'Unknown activity.');
 
   const { data: recent, error: lookupError } = await db
-    .from('screenings')
+    .from('screening_records')
     .select('outcome')
     .eq('donor_id', donorId)
     .eq('activity_id', activityId)
@@ -1401,7 +1404,7 @@ app.post('/api/donations', handler(async (req, res) => {
   }
 
   const { data, error } = await db
-    .from('donations')
+    .from('donation_records')
     .insert({ donor_id: donorId, activity_id: activityId, status: 'Completed' })
     .select()
     .single();
