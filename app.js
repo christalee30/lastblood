@@ -245,6 +245,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                     <strong id="staff-name">Staff</strong>
                     <p class="muted" id="staff-role">Role</p>
                 </div>
+                <button class="button secondary small" data-action="refresh">Refresh</button>
                 <button class="button secondary small" data-action="logout">Sign Out</button>
             </div>
         </header>
@@ -1314,13 +1315,23 @@ async function loadAll() {
     };
     const keys = Object.keys(wanted);
     const results = await Promise.allSettled(Object.values(wanted));
-    let firstError = null;
+    const failures = [];
     results.forEach((r, i) => {
-        if (r.status === "fulfilled") state[keys[i]] = r.value;
-        else if (!firstError) firstError = r.reason;
+        if (r.status === "fulfilled") {
+            state[keys[i]] = r.value;
+        } else {
+            failures.push(keys[i] + ": " + ((r.reason && r.reason.message) || "Request failed"));
+        }
     });
-    if (firstError) showError("Could not load some data: " + firstError.message);
+
+    if (failures.length) {
+        showError("Some data could not be loaded: " + failures.join("; ") + ". Select Refresh to try again.");
+    } else {
+        $("error-box").classList.add("hidden");
+    }
+
     renderAll();
+    return failures.length === 0;
 }
  
 /* ---------- Navigation ---------- */
@@ -1875,6 +1886,11 @@ document.addEventListener("click", async e => {
     try {
         switch (btn.dataset.action) {
             case "logout": await sb.auth.signOut(); break;
+            case "refresh": {
+                const refreshed = await loadAll();
+                if (refreshed) showSuccess("Data refreshed.");
+                break;
+            }
             case "print": window.print(); break;
             case "edit-activity": editRecord("activity", id); break;
             case "edit-donor": editRecord("donor", id); break;
@@ -2205,6 +2221,7 @@ function donorFields(body) {
   if (!f.first_name || !f.last_name || !f.birthdate) throw new HttpError(400, 'First name, last name and birthdate are required.');
   if (f.sex && !SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
   if (!isIsoDate(f.birthdate)) throw new HttpError(400, 'Invalid birthdate.');
+  if (f.birthdate > new Date().toISOString().slice(0, 10)) throw new HttpError(400, 'Birthdate cannot be in the future.');
   if (f.blood_type && !BLOOD_TYPES.includes(f.blood_type)) throw new HttpError(400, 'Invalid blood type.');
   if (!['active', 'inactive'].includes(f.donor_status)) throw new HttpError(400, 'Invalid donor status.');
   return f;
