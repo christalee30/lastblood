@@ -2401,13 +2401,14 @@ function donationFields(body) {
 // Verify that Medical Personnel recorded an Accepted outcome for this participation.
 async function requireAccepted(participationId) {
   const { data, error } = await db.from('screening_records')
-    .select('screening_outcome')
+    .select('screening_id, screening_outcome')
     .eq('participation_id', participationId)
     .maybeSingle();
   if (error) throw error;
   if (!data || data.screening_outcome !== 'accepted') {
     throw new HttpError(400, 'A donation can be recorded only for a participation with an Accepted screening outcome.');
   }
+  return data.screening_id;
 }
  
 app.get('/api/donations', allow(ADMIN, MED, DON), handler(async (req, res) => {
