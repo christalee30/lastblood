@@ -1448,7 +1448,7 @@ function renderDetail() {
             <thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
             <tbody>\${staffRows || empty(3, "No staff assigned yet.")}</tbody>
         </table></div>
-        \${p.manageAssignments ? \`<div class="add-row">
+        \${p.manageAssignments && open ? \`<div class="add-row">
             <select id="add-staff-select">\${availableStaff.length
                 ? availableStaff.map(s => \`<option value="\${s.id}">\${escapeHTML(s.full_name)} (\${ROLES[s.role]})</option>\`).join("")
                 : '<option value="">No active staff available</option>'}</select>
@@ -2029,6 +2029,8 @@ function dbFail(error, fallback) {
   if (error.code === '23505') throw new HttpError(400, fallback || 'That record already exists.');
   if (error.code === '23503') throw new HttpError(409, 'This record is linked to other records and cannot be changed or deleted.');
   if (error.code === '23514' || error.code === '22P02') throw new HttpError(400, 'One of the values is not valid.');
+  // A database trigger/rule that raises its own message (e.g. "activity is closed"): show it.
+  if (error.code === 'P0001' && error.message) throw new HttpError(400, error.message);
   throw error;
 }
  
@@ -2175,7 +2177,13 @@ app.get('/api/assignments', handler(async (req, res) => {
 app.post('/api/assignments', allow(ADMIN, COORD), handler(async (req, res) => {
   const activityId = intParam(req.body.activity_id, 'activity');
   const staffId = text(req.body.staff_id);
-  if (!(await rowExists('mbd_activities', activityId))) throw new HttpError(400, 'Unknown activity.');
+  const { data: activity, error: aErr } = await db.from('mbd_activities')
+    .select('activity_status').eq('activity_id', activityId).maybeSingle();
+  if (aErr) throw aErr;
+  if (!activity) throw new HttpError(400, 'Unknown activity.');
+  if (!['planned', 'ongoing'].includes(activity.activity_status)) {
+    throw new HttpError(400, 'Staff can be assigned only to a Planned or Ongoing activity.');
+  }
   if (!(await rowExists('staff_profiles', staffId))) throw new HttpError(400, 'Unknown staff member.');
   const { data, error } = await db
     .from('activity_staff_assignments')
