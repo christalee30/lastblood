@@ -406,7 +406,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 </select>
                             </div>
                             <div class="field">
-                                <label for="blood-type">Blood Type (optional, as stated by donor)</label>
+                                <label for="blood-type">Blood Type</label>
                                 <select id="blood-type">
                                     <option value="">Not known</option>
                                     <option>A+</option><option>A-</option>
@@ -435,7 +435,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 <span class="muted small-text" id="consent-recorded-note"></span>
                             </div>
                             <div class="field full" id="join-activity-wrap">
-                                <label for="join-activity">Also add to activity (optional, saved together in one step)</label>
+                                <label for="join-activity">Also add to activity </label>
                                 <select id="join-activity"></select>
                             </div>
                         </div>
@@ -486,19 +486,19 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 <select id="screening-participation" required></select>
                             </div>
                             <div class="field">
-                                <label for="systolic">Systolic BP (optional)</label>
+                                <label for="systolic">Systolic BP (required)</label>
                                 <input id="systolic" type="number" min="50" max="260">
                             </div>
                             <div class="field">
-                                <label for="diastolic">Diastolic BP (optional)</label>
+                                <label for="diastolic">Diastolic BP (required)</label>
                                 <input id="diastolic" type="number" min="30" max="160">
                             </div>
                             <div class="field">
-                                <label for="weight">Weight in kg (optional)</label>
+                                <label for="weight">Weight in kg (required)</label>
                                 <input id="weight" type="number" step="0.01" min="20" max="300">
                             </div>
                             <div class="field">
-                                <label for="hemoglobin">Hemoglobin g/dL (optional)</label>
+                                <label for="hemoglobin">Hemoglobin g/dL (required)</label>
                                 <input id="hemoglobin" type="number" step="0.01" min="3" max="25">
                             </div>
                             <div class="field">
