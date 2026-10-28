@@ -10,14 +10,14 @@ This guide applies to the branch `revised-mbdms-supabase`. It is a student proto
 - Aligned donor validation with the schema: sex, contact number, and address can be blank; the accepted sex values match the database.
 - Restricted Donation Staff to donor basics for participations that have an Accepted screening outcome. The route does not return their address, contact number, birthdate, or consent details.
 - Restricted Donation Staff's participation list to accepted participations, while the server still checks the screening result before saving a donation.
-- Added date validation and keyboard-focus styles.
+- Added date validation, keyboard-focus styles, and a Refresh action with clearer loading-error messages.
 
 ## Part 1 — Use GitHub safely
 
 1. Open the repository: https://github.com/christalee30/lastblood
 2. Open the branch selector near the top-left above the file list and select **`revised-mbdms-supabase`**.
 3. Review `app.js`, `schema.sql`, and this guide on that branch.
-4. Do not copy the branch code into `main) yet. Keep the original `main` branch available as a fallback.
+4. Do not merge the branch into `main` yet. Keep the original `main` branch available as a fallback.
 5. When testing passes, review the pull request for this branch and merge it into `main`.
 
 ## Part 2 — Back up and update Supabase
