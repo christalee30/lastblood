@@ -2221,7 +2221,12 @@ function donorFields(body) {
   if (!f.first_name || !f.last_name || !f.birthdate) throw new HttpError(400, 'First name, last name and birthdate are required.');
   if (f.sex && !SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
   if (!isIsoDate(f.birthdate)) throw new HttpError(400, 'Invalid birthdate.');
-  if (f.birthdate > new Date().toISOString().slice(0, 10)) throw new HttpError(400, 'Birthdate cannot be in the future.');
+  const dateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const todayParts = Object.fromEntries(dateParts.map((part) => [part.type, part.value]));
+  const manilaToday = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
+  if (f.birthdate > manilaToday) throw new HttpError(400, 'Birthdate cannot be in the future.');
   if (f.blood_type && !BLOOD_TYPES.includes(f.blood_type)) throw new HttpError(400, 'Invalid blood type.');
   if (!['active', 'inactive'].includes(f.donor_status)) throw new HttpError(400, 'Invalid donor status.');
   return f;
