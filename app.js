@@ -2412,7 +2412,11 @@ async function requireAccepted(participationId) {
 }
  
 app.get('/api/donations', allow(ADMIN, MED, DON), handler(async (req, res) => {
-  res.json(await listAll('donation_records'));
+  const { data, error } = await db.from('donation_records')
+    .select('*, screening_records(participation_id)').order('donation_id');
+  if (error) throw error;
+  res.json(data.map(({ screening_records, ...d }) =>
+    ({ ...d, participation_id: screening_records ? screening_records.participation_id : null })));
 }));
  
 app.post('/api/donations', allow(DON), handler(async (req, res) => {
