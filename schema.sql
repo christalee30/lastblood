@@ -1,6 +1,9 @@
 -- Mobile Blood Donation Management System (MBDMS)
 -- Supabase / PostgreSQL
 -- Revised seven-table database structure
+-- IMPORTANT: CREATE TABLE IF NOT EXISTS does not alter an existing table's columns.
+-- If this project previously used the old activities/donors/screenings/donations schema,
+-- run upgrade_existing_schema.sql first to preserve legacy tables, then run this file.
 
 -- 1. STAFF PROFILES
 -- The ID is the same UUID used by Supabase Authentication.
