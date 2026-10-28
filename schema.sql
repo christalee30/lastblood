@@ -1,6 +1,9 @@
 -- Mobile Blood Donation Management System (MBDMS)
 -- Supabase / PostgreSQL
 -- Revised seven-table database structure
+-- IMPORTANT: CREATE TABLE IF NOT EXISTS does not alter an existing table's columns.
+-- If this project previously used the old activities/donors/screenings/donations schema,
+-- run upgrade_existing_schema.sql first to preserve legacy tables, then run this file.
 
 -- 1. STAFF PROFILES
 -- The ID is the same UUID used by Supabase Authentication.
@@ -169,9 +172,11 @@ ON public.screening_records (screened_by);
 CREATE INDEX IF NOT EXISTS donations_recorded_by_idx
 ON public.donation_records (recorded_by);
 
--- BASIC SECURITY SETUP
--- RLS is enabled, but role-specific policies still need to be added
--- and tested before the application is considered secure.
+-- SECURITY
+-- This application accesses these tables only through the trusted Express server.
+-- Its service-role key bypasses RLS, so every API route must authenticate the user
+-- and enforce server-side role checks. Never put the service-role key in browser code.
+-- No direct browser table-access policies are created here.
 ALTER TABLE public.staff_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.donors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mbd_activities ENABLE ROW LEVEL SECURITY;
@@ -179,3 +184,17 @@ ALTER TABLE public.activity_staff_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_donors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.screening_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.donation_records ENABLE ROW LEVEL SECURITY;
+
+-- Only the trusted backend service role receives data-operation privileges.
+-- Do not grant these privileges to anon or authenticated browser roles.
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+    public.staff_profiles,
+    public.donors,
+    public.mbd_activities,
+    public.activity_staff_assignments,
+    public.activity_donors,
+    public.screening_records,
+    public.donation_records
+TO service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;

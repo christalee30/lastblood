@@ -72,9 +72,12 @@ class HttpError extends Error {
  
 const text = (value) => String(value ?? '').trim();
  
-const isIsoDate = (value) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-  !Number.isNaN(Date.parse(value));
+const isIsoDate = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
  
 const isPositiveInt = (n) =>
   Number.isInteger(n) && n > 0;
@@ -161,9 +164,9 @@ function explainDbError(err) {
  
 async function checkConnection() {
   const { error } = await db
-  .from('mbd_activities')
-  .select('activity_id', { head: true, count: 'exact' })
-  .limit(1);
+    .from('mbd_activities')
+    .select('activity_id', { head: true, count: 'exact' })
+    .limit(1);
  
   if (error) {
     console.error('Supabase connection check FAILED:', error.message || error);
@@ -242,6 +245,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                     <strong id="staff-name">Staff</strong>
                     <p class="muted" id="staff-role">Role</p>
                 </div>
+                <button class="button secondary small" data-action="refresh">Refresh</button>
                 <button class="button secondary small" data-action="logout">Sign Out</button>
             </div>
         </header>
@@ -397,10 +401,12 @@ const INDEX_HTML = `<!DOCTYPE html>
                             </div>
                             <div class="field">
                                 <label for="sex">Sex</label>
-                                <select id="sex" required>
-                                    <option value="">Select sex</option>
+                                <select id="sex">
+                                    <option value="">Not stated</option>
                                     <option value="female">Female</option>
                                     <option value="male">Male</option>
+                                    <option value="other">Other</option>
+                                    <option value="prefer_not_to_say">Prefer not to say</option>
                                 </select>
                             </div>
                             <div class="field">
@@ -415,7 +421,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                             </div>
                             <div class="field">
                                 <label for="contact">Contact Number (fictional)</label>
-                                <input id="contact" required>
+                                <input id="contact">
                             </div>
                             <div class="field">
                                 <label for="donor-status">Donor Status</label>
@@ -426,7 +432,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                             </div>
                             <div class="field full">
                                 <label for="address">Address</label>
-                                <input id="address" required>
+                                <input id="address">
                             </div>
                             <div class="field full check">
                                 <label><input type="checkbox" id="consent-given"> Donor has given consent to donate and to the recording of their data</label>
@@ -719,6 +725,8 @@ body {
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #1f5fbf; outline-offset: 2px; }
+input, select { max-width: 100%; }
 .muted { color: var(--muted); }
 .small-text { font-size: 11px; line-height: 1.5; }
  
@@ -1104,9 +1112,9 @@ function perm() {
     return {
         manageActivities: is("administrator", "coordinator"),
         manageAssignments: is("administrator", "coordinator"),
-        readDonors: is("administrator", "registration_staff", "medical_personnel", "donation_staff"),
+        readDonors: is("administrator", "registration_staff", "medical_personnel"),
         writeDonors: is("administrator", "registration_staff"),
-        readParticipations: is("administrator", "registration_staff", "medical_personnel", "donation_staff"),
+        readParticipations: is("administrator", "registration_staff", "medical_personnel"),
         writeParticipations: is("administrator", "registration_staff"),
         readScreening: is("administrator", "medical_personnel"),
         readAccepted: is("donation_staff"),          // accepted outcomes only, no measurements
@@ -1296,10 +1304,10 @@ async function loadAll() {
     const get = path => api("GET", path);
     const wanted = {
         activities: get("/api/activities"),
-        donors: p.readDonors ? get("/api/donors") : [],
-        participations: p.readParticipations ? get("/api/participations") : [],
-        screenings: (p.readScreening || p.readAccepted) ? get("/api/screenings") : [],
-        donations: p.readDonations ? get("/api/donations") : [],
+        donors: (p.readDonors || p.readAccepted) ? get("/api/donors") : Promise.resolve([]),
+        participations: (p.readParticipations || p.readAccepted) ? get("/api/participations") : Promise.resolve([]),
+        screenings: (p.readScreening || p.readAccepted) ? get("/api/screenings") : Promise.resolve([]),
+        donations: p.readDonations ? get("/api/donations") : Promise.resolve([]),
         staff: get("/api/staff"),
         assignments: get("/api/assignments"),
         counts: get("/api/summary"),
@@ -1307,13 +1315,23 @@ async function loadAll() {
     };
     const keys = Object.keys(wanted);
     const results = await Promise.allSettled(Object.values(wanted));
-    let firstError = null;
+    const failures = [];
     results.forEach((r, i) => {
-        if (r.status === "fulfilled") state[keys[i]] = r.value;
-        else if (!firstError) firstError = r.reason;
+        if (r.status === "fulfilled") {
+            state[keys[i]] = r.value;
+        } else {
+            failures.push(keys[i] + ": " + ((r.reason && r.reason.message) || "Request failed"));
+        }
     });
-    if (firstError) showError("Could not load some data: " + firstError.message);
+
+    if (failures.length) {
+        showError("Some data could not be loaded: " + failures.join("; ") + ". Select Refresh to try again.");
+    } else {
+        $("error-box").classList.add("hidden");
+    }
+
     renderAll();
+    return failures.length === 0;
 }
  
 /* ---------- Navigation ---------- */
@@ -1634,7 +1652,7 @@ function newForm(name) {
         $("donation-participation").disabled = false;
         const donated = new Set(state.donations.map(d => d.participation_id));
         const accepted = new Set(state.screenings
-            .filter(s => !s.screening_outcome || s.screening_outcome === "accepted").map(s => s.participation_id));
+            .filter(s => s.screening_outcome === "accepted").map(s => s.participation_id));
         fillParticipationSelect("donation-participation",
             state.participations.filter(x => accepted.has(x.participation_id) && !donated.has(x.participation_id)));
     }
@@ -1868,6 +1886,11 @@ document.addEventListener("click", async e => {
     try {
         switch (btn.dataset.action) {
             case "logout": await sb.auth.signOut(); break;
+            case "refresh": {
+                const refreshed = await loadAll();
+                if (refreshed) showSuccess("Data refreshed.");
+                break;
+            }
             case "print": window.print(); break;
             case "edit-activity": editRecord("activity", id); break;
             case "edit-donor": editRecord("donor", id); break;
@@ -2046,8 +2069,6 @@ app.get('/api/reports/activity-summary', handler(async (req, res) => {
     listAll('donation_records')
   ]);
   const activityOf = new Map(parts.map((p) => [p.participation_id, p.activity_id]));
-  // CHANGED: a donation now links to a screening, so map screening -> participation
-  const partOfScreening = new Map(screenings.map((s) => [s.screening_id, s.participation_id]));
   const rows = activities.map((a) => ({
     activity_id: a.activity_id,
     participants: parts.filter((p) => p.activity_id === a.activity_id).length,
@@ -2059,17 +2080,10 @@ app.get('/api/reports/activity-summary', handler(async (req, res) => {
     if (r && r[s.screening_outcome] !== undefined) r[s.screening_outcome]++;
   }
   for (const d of donations) {
-    // CHANGED: was activityOf.get(d.participation_id)
-    const r = byId.get(activityOf.get(partOfScreening.get(d.screening_id)));
+    const r = byId.get(activityOf.get(d.participation_id));
     if (r && d.donation_status === 'completed') r.completed++;
   }
   res.json(rows);
-}));
- 
-app.post('/api/reset', allow(ADMIN), handler(async (req, res) => {
-  const { error } = await db.rpc('reset_demo_data');
-  if (error) throw error;
-  res.json({ ok: true });
 }));
  
 // ==========================================
@@ -2179,9 +2193,17 @@ app.delete('/api/assignments/:id', allow(ADMIN, COORD), handler(async (req, res)
 // ==========================================
 // API: DONORS
 // ==========================================
-const DONOR_READERS = [ADMIN, REG, MED, DON];
-const SEXES = ['female', 'male']; // CHANGED: database only accepts female / male
+const DONOR_READERS = [ADMIN, REG, MED];
+const SEXES = ['male', 'female', 'other', 'prefer_not_to_say'];
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+async function acceptedParticipationIds() {
+  const { data, error } = await db.from('screening_records')
+    .select('participation_id')
+    .eq('screening_outcome', 'accepted');
+  if (error) throw error;
+  return data.map((row) => row.participation_id);
+}
  
 function donorFields(body) {
   const f = {
@@ -2197,16 +2219,36 @@ function donorFields(body) {
     consent_given: body.consent_given === true
   };
   if (!f.first_name || !f.last_name || !f.birthdate) throw new HttpError(400, 'First name, last name and birthdate are required.');
-  // CHANGED: sex, contact number and address are NOT NULL in the database
-  if (!f.sex || !f.contact_number || !f.address) throw new HttpError(400, 'Sex, contact number and address are required.');
+  if (f.sex && !SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
   if (!isIsoDate(f.birthdate)) throw new HttpError(400, 'Invalid birthdate.');
-  if (!SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
+  const dateParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+  const todayParts = Object.fromEntries(dateParts.map((part) => [part.type, part.value]));
+  const manilaToday = `${todayParts.year}-${todayParts.month}-${todayParts.day}`;
+  if (f.birthdate > manilaToday) throw new HttpError(400, 'Birthdate cannot be in the future.');
   if (f.blood_type && !BLOOD_TYPES.includes(f.blood_type)) throw new HttpError(400, 'Invalid blood type.');
   if (!['active', 'inactive'].includes(f.donor_status)) throw new HttpError(400, 'Invalid donor status.');
   return f;
 }
  
-app.get('/api/donors', allow(...DONOR_READERS), handler(async (req, res) => {
+app.get('/api/donors', allow(ADMIN, REG, MED, DON), handler(async (req, res) => {
+  if (req.user.role === DON) {
+    const participationIds = await acceptedParticipationIds();
+    if (!participationIds.length) return res.json([]);
+    const { data: participations, error: pErr } = await db.from('activity_donors')
+      .select('donor_id')
+      .in('participation_id', participationIds);
+    if (pErr) throw pErr;
+    const donorIds = [...new Set(participations.map((row) => row.donor_id))];
+    if (!donorIds.length) return res.json([]);
+    const { data, error } = await db.from('donors')
+      .select('donor_id, first_name, middle_name, last_name, blood_type, donor_status')
+      .in('donor_id', donorIds)
+      .order('donor_id');
+    if (error) throw error;
+    return res.json(data);
+  }
   res.json(await listAll('donors'));
 }));
  
@@ -2246,7 +2288,17 @@ app.patch('/api/donors/:id', allow(ADMIN, REG), handler(async (req, res) => {
 // ==========================================
 const PARTICIPATION_STATUSES = ['registered', 'attended', 'withdrawn', 'no_show'];
  
-app.get('/api/participations', allow(...DONOR_READERS), handler(async (req, res) => {
+app.get('/api/participations', allow(ADMIN, REG, MED, DON), handler(async (req, res) => {
+  if (req.user.role === DON) {
+    const participationIds = await acceptedParticipationIds();
+    if (!participationIds.length) return res.json([]);
+    const { data, error } = await db.from('activity_donors')
+      .select('*')
+      .in('participation_id', participationIds)
+      .order('participation_id');
+    if (error) throw error;
+    return res.json(data);
+  }
   res.json(await listAll('activity_donors'));
 }));
  
@@ -2334,48 +2386,44 @@ app.patch('/api/screenings/:id', allow(MED), handler(async (req, res) => {
 function donationFields(body) {
   const status = text(body.donation_status);
   const volume = body.volume_ml === null || body.volume_ml === undefined || body.volume_ml === '' ? null : Number(body.volume_ml);
-  // CHANGED: volume_ml is NOT NULL in the database, so a blank volume is saved as 0
-  const f = { bag_serial_no: text(body.bag_serial_no), volume_ml: volume ?? 0, donation_status: status };
+  const f = { bag_serial_no: text(body.bag_serial_no), volume_ml: volume, donation_status: status };
   if (!f.bag_serial_no) throw new HttpError(400, 'Bag serial number is required.');
   if (!['completed', 'not_completed'].includes(status)) throw new HttpError(400, 'Donation status must be completed or not_completed.');
-  if (status === 'completed' && (!Number.isFinite(volume) || volume <= 0)) {
+  if (volume !== null && (!Number.isInteger(volume) || volume < 0 || volume > 1000)) {
+    throw new HttpError(400, 'Volume must be a whole number between 0 and 1000 ml.');
+  }
+  if (status === 'completed' && (volume === null || volume <= 0)) {
     throw new HttpError(400, 'A completed donation requires a volume above 0 ml.');
   }
-  if (status !== 'completed' && volume !== null && !Number.isFinite(volume)) throw new HttpError(400, 'Invalid volume.');
   return f;
 }
  
-// CHANGED: now returns the screening_id of the Accepted screening
+// Verify that Medical Personnel recorded an Accepted outcome for this participation.
 async function requireAccepted(participationId) {
   const { data, error } = await db.from('screening_records')
-    .select('screening_id, screening_outcome').eq('participation_id', participationId).maybeSingle();
+    .select('screening_outcome')
+    .eq('participation_id', participationId)
+    .maybeSingle();
   if (error) throw error;
   if (!data || data.screening_outcome !== 'accepted') {
     throw new HttpError(400, 'A donation can be recorded only for a participation with an Accepted screening outcome.');
   }
-  return data.screening_id;
 }
  
-// CHANGED: joins through screening_records and adds participation_id back for the browser
 app.get('/api/donations', allow(ADMIN, MED, DON), handler(async (req, res) => {
-  const { data, error } = await db.from('donation_records')
-    .select('*, screening_records(participation_id)').order('donation_id');
-  if (error) throw error;
-  res.json(data.map(({ screening_records, ...d }) =>
-    ({ ...d, participation_id: screening_records ? screening_records.participation_id : null })));
+  res.json(await listAll('donation_records'));
 }));
  
-// CHANGED: saves screening_id instead of participation_id
 app.post('/api/donations', allow(DON), handler(async (req, res) => {
   const participationId = intParam(req.body.participation_id, 'participation');
   if (!(await rowExists('activity_donors', participationId))) throw new HttpError(400, 'Unknown participation record.');
   const fields = donationFields(req.body);
-  const screeningId = await requireAccepted(participationId);
+  await requireAccepted(participationId);
   const { data, error } = await db.from('donation_records')
-    .insert({ ...fields, screening_id: screeningId, recorded_by: req.user.id })
+    .insert({ ...fields, participation_id: participationId, recorded_by: req.user.id })
     .select().single();
-  dbFail(error, 'This screening already has a donation record, or the bag serial number is already used.');
-  res.status(201).json({ ...data, participation_id: participationId });
+  dbFail(error, 'This participation already has a donation record, or the bag serial number is already used.');
+  res.status(201).json(data);
 }));
  
 app.patch('/api/donations/:id', allow(DON), handler(async (req, res) => {
