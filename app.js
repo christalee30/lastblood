@@ -702,7 +702,7 @@ const STYLES_CSS = `:root {
     --dark-red: #a20d25;
     --light-red: #fff0f2;
     --white: #ffffff;
-    --background: #f5f6f8;
+    --background: #F5F6F8;
     --text: #262b33;
     --muted: #747b87;
     --border: #e7e8ec;
