@@ -406,7 +406,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 </select>
                             </div>
                             <div class="field">
-                                <label for="blood-type">Blood Type</label>
+                                <label for="blood-type">Blood Type (optional, as stated by donor)</label>
                                 <select id="blood-type">
                                     <option value="">Not known</option>
                                     <option>A+</option><option>A-</option>
@@ -435,7 +435,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 <span class="muted small-text" id="consent-recorded-note"></span>
                             </div>
                             <div class="field full" id="join-activity-wrap">
-                                <label for="join-activity">Also add to activity </label>
+                                <label for="join-activity">Also add to activity (optional, saved together in one step)</label>
                                 <select id="join-activity"></select>
                             </div>
                         </div>
@@ -486,19 +486,19 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 <select id="screening-participation" required></select>
                             </div>
                             <div class="field">
-                                <label for="systolic">Systolic BP (required)</label>
+                                <label for="systolic">Systolic BP (optional)</label>
                                 <input id="systolic" type="number" min="50" max="260">
                             </div>
                             <div class="field">
-                                <label for="diastolic">Diastolic BP (required)</label>
+                                <label for="diastolic">Diastolic BP (optional)</label>
                                 <input id="diastolic" type="number" min="30" max="160">
                             </div>
                             <div class="field">
-                                <label for="weight">Weight in kg (required)</label>
+                                <label for="weight">Weight in kg (optional)</label>
                                 <input id="weight" type="number" step="0.01" min="20" max="300">
                             </div>
                             <div class="field">
-                                <label for="hemoglobin">Hemoglobin g/dL (required)</label>
+                                <label for="hemoglobin">Hemoglobin g/dL (optional)</label>
                                 <input id="hemoglobin" type="number" step="0.01" min="3" max="25">
                             </div>
                             <div class="field">
@@ -698,14 +698,14 @@ const INDEX_HTML = `<!DOCTYPE html>
 `;
  
 const STYLES_CSS = `:root {
-    --red: #E11D48;
-    --dark-red: #BE123C;
-    --light-red: #FEE2E2;
-    --white: #FFFFFF;
-    --background: #F1F5F9;
-    --text: #1E293B;
-    --muted: #475569;
-    --border: #E2E8F0;
+    --red: #c8102e;
+    --dark-red: #a20d25;
+    --light-red: #fff0f2;
+    --white: #ffffff;
+    --background: #f5f6f8;
+    --text: #262b33;
+    --muted: #747b87;
+    --border: #e7e8ec;
     --green: #16804a;
     --blue: #1f5fbf;
 }
@@ -721,7 +721,7 @@ body {
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { opacity: 0.6; cursor: not-allowed; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #1f5fbf; outline-offset: 2px; }
 input, select { max-width: 100%; }
 .muted { color: var(--muted); }
 .small-text { font-size: 11px; line-height: 1.5; }
@@ -771,7 +771,7 @@ input, select { max-width: 100%; }
 .brand-symbol {
     width: 44px;
     height: 44px;
-    background: #A81C30;
+    background: var(--red);
     color: white;
     display: grid;
     place-items: center;
@@ -780,7 +780,7 @@ input, select { max-width: 100%; }
     border-radius: 10px;
     flex-shrink: 0;
 }
-.brand h2 { color: #A81C30; font-size: 17px; }
+.brand h2 { color: var(--red); font-size: 17px; }
 .brand p { color: var(--muted); font-size: 11px; margin-top: 4px; }
 .nav-title {
     color: var(--muted);
@@ -793,7 +793,7 @@ input, select { max-width: 100%; }
     width: 100%;
     border: 0;
     background: transparent;
-    color: #1E293B;
+    color: #515763;
     display: flex;
     gap: 12px;
     align-items: center;
@@ -816,7 +816,7 @@ input, select { max-width: 100%; }
     border-radius: 10px;
     font-size: 12px;
     line-height: 1.6;
-    color: var(--text);
+    color: #6e303b;
 }
  
 /* MAIN */
@@ -924,7 +924,7 @@ th, td {
 }
 th {
     color: var(--muted);
-    background: #F1F5F9;
+    background: #fafafa;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -937,13 +937,13 @@ td.actions { display: flex; gap: 6px; }
     padding: 5px 9px;
     border-radius: 20px;
     font-size: 11px;
-    background: #F1F5F9;
+    background: #eee;
 }
 .badge.red { background: var(--light-red); color: var(--red); }
 .badge.green { background: #e7f7ee; color: var(--green); }
-.badge.orange { background: #FEF3C7; color: #92400E; }
+.badge.orange { background: #fff1dc; color: #925700; }
 .badge.blue { background: #e8f0fc; color: var(--blue); }
-.badge.gray { background: #F1F5F9; color: var(--muted); }
+.badge.gray { background: #eceef1; color: var(--muted); }
  
 .button {
     border: 0;
@@ -955,10 +955,10 @@ td.actions { display: flex; gap: 6px; }
     font-weight: bold;
 }
 .button:hover:not(:disabled) { background: var(--dark-red); }
-.button.secondary { background: white; color: #E11D48; border: 1px solid #E11D48; }
-.button.secondary:hover:not(:disabled) { background: #FEE2E2; }
+.button.secondary { background: white; color: var(--red); border: 1px solid var(--red); }
+.button.secondary:hover:not(:disabled) { background: var(--light-red); }
 .button.small { padding: 7px 10px; }
-.button.danger { background: white; color: var(--red); border: 1px solid var(--border); }
+.button.danger { background: white; color: #8a1020; border: 1px solid #d9a2aa; }
  
 .search {
     width: 100%;
@@ -991,15 +991,15 @@ td.actions { display: flex; gap: 6px; }
 select.inline { padding: 6px; border: 1px solid var(--border); border-radius: 6px; background: white; font-size: 12px; }
  
 .notice {
-    background: #F1F5F9;
-    color: #475569;
+    background: #fff8e8;
+    color: #755214;
     padding: 13px 16px;
     border-radius: 8px;
     margin-bottom: 20px;
     font-size: 12px;
     line-height: 1.6;
 }
-.notice.error { background: #FECACA; color: #9F1239; }
+.notice.error { background: #fff0f2; color: #a20d25; }
 .notice.success { background: #e7f7ee; color: #115c36; }
  
 .empty { padding: 28px; color: var(--muted); text-align: center; }
@@ -1014,7 +1014,7 @@ select.inline { padding: 6px; border: 1px solid var(--border); border-radius: 6p
 }
 .detail-grid > div { border-right: 1px solid var(--border); min-width: 0; }
 .detail-grid > div:last-child { border-right: 0; }
-.detail-sub { padding: 14px 20px; font-size: 13px; font-weight: bold; background: #F5F6F8; border-bottom: 1px solid var(--border); }
+.detail-sub { padding: 14px 20px; font-size: 13px; font-weight: bold; background: #fafafa; border-bottom: 1px solid var(--border); }
 .add-row { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); }
 .add-row select { flex: 1; min-width: 0; padding: 9px; border: 1px solid var(--border); border-radius: 7px; background: white; }
  
@@ -1448,7 +1448,7 @@ function renderDetail() {
             <thead><tr><th>Name</th><th>Role</th><th></th></tr></thead>
             <tbody>\${staffRows || empty(3, "No staff assigned yet.")}</tbody>
         </table></div>
-        \${p.manageAssignments && open ? \`<div class="add-row">
+        \${p.manageAssignments ? \`<div class="add-row">
             <select id="add-staff-select">\${availableStaff.length
                 ? availableStaff.map(s => \`<option value="\${s.id}">\${escapeHTML(s.full_name)} (\${ROLES[s.role]})</option>\`).join("")
                 : '<option value="">No active staff available</option>'}</select>
@@ -2029,8 +2029,6 @@ function dbFail(error, fallback) {
   if (error.code === '23505') throw new HttpError(400, fallback || 'That record already exists.');
   if (error.code === '23503') throw new HttpError(409, 'This record is linked to other records and cannot be changed or deleted.');
   if (error.code === '23514' || error.code === '22P02') throw new HttpError(400, 'One of the values is not valid.');
-  // A database trigger/rule that raises its own message (e.g. "activity is closed"): show it.
-  if (error.code === 'P0001' && error.message) throw new HttpError(400, error.message);
   throw error;
 }
  
@@ -2177,13 +2175,7 @@ app.get('/api/assignments', handler(async (req, res) => {
 app.post('/api/assignments', allow(ADMIN, COORD), handler(async (req, res) => {
   const activityId = intParam(req.body.activity_id, 'activity');
   const staffId = text(req.body.staff_id);
-  const { data: activity, error: aErr } = await db.from('mbd_activities')
-    .select('activity_status').eq('activity_id', activityId).maybeSingle();
-  if (aErr) throw aErr;
-  if (!activity) throw new HttpError(400, 'Unknown activity.');
-  if (!['planned', 'ongoing'].includes(activity.activity_status)) {
-    throw new HttpError(400, 'Staff can be assigned only to a Planned or Ongoing activity.');
-  }
+  if (!(await rowExists('mbd_activities', activityId))) throw new HttpError(400, 'Unknown activity.');
   if (!(await rowExists('staff_profiles', staffId))) throw new HttpError(400, 'Unknown staff member.');
   const { data, error } = await db
     .from('activity_staff_assignments')
