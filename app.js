@@ -1,64 +1,54 @@
-/**
- * MBDMS - BLOOD DRIVE MANAGER
- * Single-file server application (Express.js + Supabase JavaScript Client)
- * Designed for deployment on Render + Supabase Database.
- *
- * FICTIONAL DATA ONLY - student prototype, not an official Philippine Red Cross system.
- *
- * Files in this project:  app.js  (this file)  |  package.json  |  schema.sql (run in Supabase)
- * Environment variables:  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY  (set on Render / in a local .env)
- * Never put the service-role key in this file or in GitHub.
- */
 
+ 
 try { require('dotenv').config(); } catch (e) { /* dotenv is optional on Render */ }
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
-
+ 
 // ==========================================
 // ENVIRONMENT & SYSTEM INITIALIZATION
 // ==========================================
-
+ 
 const PORT = Number(process.env.PORT) || 3000;
-
+ 
 // Clean spaces, surrounding quotes, and trailing Supabase paths.
 const clean = (v) =>
   String(v || '').trim().replace(/^["']|["']$/g, '').trim();
-
+ 
 const SUPABASE_URL = clean(process.env.SUPABASE_URL)
   .replace(/\/rest\/v1\/?$/, '')
   .replace(/\/+$/, '');
-
+ 
 const SUPABASE_SERVICE_ROLE_KEY = clean(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-
+ 
 // Browser-safe Supabase publishable key. Set this in Render Environment.
 const SUPABASE_PUBLISHABLE_KEY = clean(
   process.env.SUPABASE_PUBLISHABLE_KEY
 );
-
+ 
 const missing = [];
-
+ 
 if (!SUPABASE_URL) missing.push('SUPABASE_URL');
 if (!SUPABASE_PUBLISHABLE_KEY) missing.push('SUPABASE_PUBLISHABLE_KEY');
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   missing.push('SUPABASE_SERVICE_ROLE_KEY');
 }
-
+ 
 if (missing.length) {
   console.error(
     `Missing environment variable(s): ${missing.join(', ')}. Set them in Render (Environment tab) or in a local .env file.`
   );
   process.exit(1);
 }
-
+ 
 if (!/^https?:\/\//.test(SUPABASE_URL)) {
   console.error(
     `SUPABASE_URL must start with https:// (got "${SUPABASE_URL}").`
   );
   process.exit(1);
 }
-
+ 
 // Service-role key: server-side only, never exposed to the browser.
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: {
@@ -66,10 +56,10 @@ const db = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     autoRefreshToken: false
   }
 });
-
+ 
 const app = express();
 app.use(express.json({ limit: '100kb' }));
-
+ 
 // ==========================================
 // HELPERS
 // ==========================================
@@ -79,20 +69,20 @@ class HttpError extends Error {
     this.status = status;
   }
 }
-
+ 
 const text = (value) => String(value ?? '').trim();
-
+ 
 const isIsoDate = (value) =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   !Number.isNaN(Date.parse(value));
-
+ 
 const isPositiveInt = (n) =>
   Number.isInteger(n) && n > 0;
-
+ 
 // Wraps async handlers so errors reach the central error handler.
 const handler = (fn) =>
   (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
-
+ 
 const PRIMARY_KEYS = {
   staff_profiles: 'id',
   donors: 'donor_id',
@@ -102,58 +92,58 @@ const PRIMARY_KEYS = {
   screening_records: 'screening_id',
   donation_records: 'donation_id'
 };
-
+ 
 async function rowExists(table, id) {
   const primaryKey = PRIMARY_KEYS[table];
-
+ 
   if (!primaryKey) {
     throw new Error(`Unknown table: ${table}`);
   }
-
+ 
   const { count, error } = await db
     .from(table)
     .select(primaryKey, { count: 'exact', head: true })
     .eq(primaryKey, id);
-
+ 
   if (error) throw error;
   return count > 0;
 }
-
+ 
 async function countRows(table, narrow) {
   const primaryKey = PRIMARY_KEYS[table];
-
+ 
   if (!primaryKey) {
     throw new Error(`Unknown table: ${table}`);
   }
-
+ 
   let query = db
     .from(table)
     .select(primaryKey, { count: 'exact', head: true });
-
+ 
   if (narrow) query = narrow(query);
-
+ 
   const { count, error } = await query;
-
+ 
   if (error) throw error;
   return count;
 }
-
+ 
 async function listAll(table) {
   const primaryKey = PRIMARY_KEYS[table];
-
+ 
   if (!primaryKey) {
     throw new Error(`Unknown table: ${table}`);
   }
-
+ 
   const { data, error } = await db
     .from(table)
     .select('*')
     .order(primaryKey);
-
+ 
   if (error) throw error;
   return data;
 }
-
+ 
 // Turns a raw Supabase/network error into a plain-English hint for the server log.
 function explainDbError(err) {
   const code = err && err.code;
@@ -168,13 +158,13 @@ function explainDbError(err) {
     return 'Cannot reach SUPABASE_URL: check it is https://<ref>.supabase.co and that the project is not paused.';
   return null;
 }
-
+ 
 async function checkConnection() {
   const { error } = await db
   .from('mbd_activities')
   .select('activity_id', { head: true, count: 'exact' })
   .limit(1);
-
+ 
   if (error) {
     console.error('Supabase connection check FAILED:', error.message || error);
     const hint = explainDbError(error);
@@ -183,7 +173,7 @@ async function checkConnection() {
     console.log('Supabase connection OK.');
   }
 }
-
+ 
 // ==========================================
 // FRONTEND (served from this file: page, stylesheet, script)
 // ==========================================
@@ -406,13 +396,11 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 <input id="birthdate" type="date" required>
                             </div>
                             <div class="field">
-                                <label for="sex">Sex (optional)</label>
-                                <select id="sex">
-                                    <option value="">Not stated</option>
+                                <label for="sex">Sex</label>
+                                <select id="sex" required>
+                                    <option value="">Select sex</option>
                                     <option value="female">Female</option>
                                     <option value="male">Male</option>
-                                    <option value="other">Other</option>
-                                    <option value="prefer_not_to_say">Prefer not to say</option>
                                 </select>
                             </div>
                             <div class="field">
@@ -426,8 +414,8 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 </select>
                             </div>
                             <div class="field">
-                                <label for="contact">Contact Number (optional, fictional)</label>
-                                <input id="contact">
+                                <label for="contact">Contact Number (fictional)</label>
+                                <input id="contact" required>
                             </div>
                             <div class="field">
                                 <label for="donor-status">Donor Status</label>
@@ -437,8 +425,8 @@ const INDEX_HTML = `<!DOCTYPE html>
                                 </select>
                             </div>
                             <div class="field full">
-                                <label for="address">Address (optional)</label>
-                                <input id="address">
+                                <label for="address">Address</label>
+                                <input id="address" required>
                             </div>
                             <div class="field full check">
                                 <label><input type="checkbox" id="consent-given"> Donor has given consent to donate and to the recording of their data</label>
@@ -497,19 +485,19 @@ const INDEX_HTML = `<!DOCTYPE html>
                             </div>
                             <div class="field">
                                 <label for="systolic">Systolic BP (optional)</label>
-                                <input id="systolic" type="number" min="50" max="300">
+                                <input id="systolic" type="number" min="50" max="260">
                             </div>
                             <div class="field">
                                 <label for="diastolic">Diastolic BP (optional)</label>
-                                <input id="diastolic" type="number" min="30" max="200">
+                                <input id="diastolic" type="number" min="30" max="160">
                             </div>
                             <div class="field">
                                 <label for="weight">Weight in kg (optional)</label>
-                                <input id="weight" type="number" step="0.01" min="1" max="500">
+                                <input id="weight" type="number" step="0.01" min="20" max="300">
                             </div>
                             <div class="field">
                                 <label for="hemoglobin">Hemoglobin g/dL (optional)</label>
-                                <input id="hemoglobin" type="number" step="0.01" min="1" max="30">
+                                <input id="hemoglobin" type="number" step="0.01" min="3" max="25">
                             </div>
                             <div class="field">
                                 <label for="screening-outcome">Outcome (as assessed by Medical Personnel)</label>
@@ -706,7 +694,7 @@ const INDEX_HTML = `<!DOCTYPE html>
 </body>
 </html>
 `;
-
+ 
 const STYLES_CSS = `:root {
     --red: #c8102e;
     --dark-red: #a20d25;
@@ -1060,7 +1048,7 @@ select.inline { padding: 6px; border: 1px solid var(--border); border-radius: 6p
     body { background: white; }
 }
 `;
-
+ 
 const CLIENT_JS = `
 const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = window.MBDMS_CONFIG;
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
@@ -1946,7 +1934,7 @@ $("donor-search").addEventListener("input", renderDonors);
     // If a session exists, onAuthStateChange (INITIAL_SESSION) starts it.
 })();
 `;
-
+ 
 app.get('/', (req, res) => res.type('html').send(INDEX_HTML));
 // Provide only the public URL/key to the browser; never expose the service-role key.
 app.get('/config.js', (req, res) => {
@@ -1959,20 +1947,20 @@ app.get('/config.js', (req, res) => {
 });
 app.get('/styles.css', (req, res) => res.type('css').send(STYLES_CSS));
 app.get('/app.js', (req, res) => res.type('js').send(CLIENT_JS));
-
+ 
 // ==========================================
 // AUTH: verify Supabase token, load role from staff_profiles
 // ==========================================
 const ROLE_NAMES = ['administrator', 'coordinator', 'registration_staff', 'medical_personnel', 'donation_staff'];
-
+ 
 async function authenticate(req) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (!token) throw new HttpError(401, 'Please sign in.');
-
+ 
   const { data, error } = await db.auth.getUser(token);
   if (error || !data || !data.user) throw new HttpError(401, 'Session expired. Please sign in again.');
-
+ 
   const { data: profile, error: pErr } = await db
     .from('staff_profiles')
     .select('*')
@@ -1985,35 +1973,35 @@ async function authenticate(req) {
   if (profile.account_status !== 'active') throw new HttpError(403, 'This staff account is inactive.');
   return profile;
 }
-
+ 
 // Every /api route except /api/health requires a valid login.
 app.use('/api', handler(async (req, res, next) => {
   if (req.path === '/health') return next();
   req.user = await authenticate(req);
   next();
 }));
-
+ 
 // Role guard
 const allow = (...roles) => (req, res, next) => {
   if (!roles.includes(req.user.role)) return next(new HttpError(403, 'Your role is not allowed to do this.'));
   next();
 };
-
+ 
 const ADMIN = 'administrator', COORD = 'coordinator', REG = 'registration_staff',
       MED = 'medical_personnel', DON = 'donation_staff';
-
+ 
 const pick = (body, fields) => {
   const out = {};
   for (const f of fields) if (body[f] !== undefined) out[f] = body[f];
   return out;
 };
-
+ 
 const intParam = (v, label = 'ID') => {
   const n = Number(v);
   if (!Number.isSafeInteger(n) || n <= 0) throw new HttpError(400, `Invalid ${label}.`);
   return n;
 };
-
+ 
 function dbFail(error, fallback) {
   if (!error) return;
   if (error.code === '23505') throw new HttpError(400, fallback || 'That record already exists.');
@@ -2021,7 +2009,7 @@ function dbFail(error, fallback) {
   if (error.code === '23514' || error.code === '22P02') throw new HttpError(400, 'One of the values is not valid.');
   throw error;
 }
-
+ 
 async function updateRow(table, idValue, fields, res, notFoundMsg) {
   const pk = PRIMARY_KEYS[table];
   const { data, error } = await db.from(table).update(fields).eq(pk, idValue).select().maybeSingle();
@@ -2029,17 +2017,17 @@ async function updateRow(table, idValue, fields, res, notFoundMsg) {
   if (!data) throw new HttpError(404, notFoundMsg || 'Record not found.');
   res.json(data);
 }
-
+ 
 // ==========================================
 // API: ME / HEALTH / SUMMARY / RESET
 // ==========================================
 app.get('/api/health', (req, res) => res.json({ ok: true }));
-
+ 
 app.get('/api/me', handler(async (req, res) => {
   const { id, full_name, role, account_status } = req.user;
   res.json({ id, full_name, role, account_status });
 }));
-
+ 
 app.get('/api/summary', handler(async (req, res) => {
   const [activities, donors, screenings, completed] = await Promise.all([
     countRows('mbd_activities'),
@@ -2049,7 +2037,7 @@ app.get('/api/summary', handler(async (req, res) => {
   ]);
   res.json({ activities, donors, screenings, completed_donations: completed });
 }));
-
+ 
 app.get('/api/reports/activity-summary', handler(async (req, res) => {
   const [activities, parts, screenings, donations] = await Promise.all([
     listAll('mbd_activities'),
@@ -2058,6 +2046,8 @@ app.get('/api/reports/activity-summary', handler(async (req, res) => {
     listAll('donation_records')
   ]);
   const activityOf = new Map(parts.map((p) => [p.participation_id, p.activity_id]));
+  // CHANGED: a donation now links to a screening, so map screening -> participation
+  const partOfScreening = new Map(screenings.map((s) => [s.screening_id, s.participation_id]));
   const rows = activities.map((a) => ({
     activity_id: a.activity_id,
     participants: parts.filter((p) => p.activity_id === a.activity_id).length,
@@ -2069,25 +2059,26 @@ app.get('/api/reports/activity-summary', handler(async (req, res) => {
     if (r && r[s.screening_outcome] !== undefined) r[s.screening_outcome]++;
   }
   for (const d of donations) {
-    const r = byId.get(activityOf.get(d.participation_id));
+    // CHANGED: was activityOf.get(d.participation_id)
+    const r = byId.get(activityOf.get(partOfScreening.get(d.screening_id)));
     if (r && d.donation_status === 'completed') r.completed++;
   }
   res.json(rows);
 }));
-
+ 
 app.post('/api/reset', allow(ADMIN), handler(async (req, res) => {
   const { error } = await db.rpc('reset_demo_data');
   if (error) throw error;
   res.json({ ok: true });
 }));
-
+ 
 // ==========================================
 // API: STAFF PROFILES
 // ==========================================
 app.get('/api/staff', handler(async (req, res) => {
   res.json(await listAll('staff_profiles'));
 }));
-
+ 
 app.post('/api/staff', allow(ADMIN), handler(async (req, res) => {
   const id = text(req.body.id);
   const fullName = text(req.body.full_name);
@@ -2104,7 +2095,7 @@ app.post('/api/staff', allow(ADMIN), handler(async (req, res) => {
   dbFail(error, 'A profile for this user already exists.');
   res.status(201).json(data);
 }));
-
+ 
 app.patch('/api/staff/:id', allow(ADMIN), handler(async (req, res) => {
   const f = pick(req.body, ['full_name', 'role', 'account_status']);
   if (f.role !== undefined && !ROLE_NAMES.includes(f.role)) throw new HttpError(400, 'Invalid role.');
@@ -2114,12 +2105,12 @@ app.patch('/api/staff/:id', allow(ADMIN), handler(async (req, res) => {
   }
   await updateRow('staff_profiles', req.params.id, f, res, 'Staff profile not found.');
 }));
-
+ 
 // ==========================================
 // API: ACTIVITIES
 // ==========================================
 const ACTIVITY_STATUSES = ['planned', 'ongoing', 'completed', 'cancelled'];
-
+ 
 function activityFields(body) {
   const f = {
     activity_name: text(body.activity_name),
@@ -2137,35 +2128,35 @@ function activityFields(body) {
   if (!ACTIVITY_STATUSES.includes(f.activity_status)) throw new HttpError(400, 'Invalid activity status.');
   return f;
 }
-
+ 
 app.get('/api/activities', handler(async (req, res) => {
   res.json(await listAll('mbd_activities'));
 }));
-
+ 
 app.post('/api/activities', allow(ADMIN, COORD), handler(async (req, res) => {
   const { data, error } = await db.from('mbd_activities').insert(activityFields(req.body)).select().single();
   dbFail(error);
   res.status(201).json(data);
 }));
-
+ 
 app.patch('/api/activities/:id', allow(ADMIN, COORD), handler(async (req, res) => {
   await updateRow('mbd_activities', intParam(req.params.id), activityFields(req.body), res, 'Activity not found.');
 }));
-
+ 
 app.delete('/api/activities/:id', allow(ADMIN, COORD), handler(async (req, res) => {
   const id = intParam(req.params.id);
   const { error } = await db.from('mbd_activities').delete().eq('activity_id', id);
   dbFail(error);
   res.json({ ok: true });
 }));
-
+ 
 // ==========================================
 // API: STAFF ASSIGNMENTS
 // ==========================================
 app.get('/api/assignments', handler(async (req, res) => {
   res.json(await listAll('activity_staff_assignments'));
 }));
-
+ 
 app.post('/api/assignments', allow(ADMIN, COORD), handler(async (req, res) => {
   const activityId = intParam(req.body.activity_id, 'activity');
   const staffId = text(req.body.staff_id);
@@ -2178,20 +2169,20 @@ app.post('/api/assignments', allow(ADMIN, COORD), handler(async (req, res) => {
   dbFail(error, 'This staff member is already assigned to the activity.');
   res.status(201).json(data);
 }));
-
+ 
 app.delete('/api/assignments/:id', allow(ADMIN, COORD), handler(async (req, res) => {
   const { error } = await db.from('activity_staff_assignments').delete().eq('assignment_id', intParam(req.params.id));
   dbFail(error);
   res.json({ ok: true });
 }));
-
+ 
 // ==========================================
 // API: DONORS
 // ==========================================
 const DONOR_READERS = [ADMIN, REG, MED, DON];
-const SEXES = ['female', 'male', 'other', 'prefer_not_to_say'];
+const SEXES = ['female', 'male']; // CHANGED: database only accepts female / male
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-
+ 
 function donorFields(body) {
   const f = {
     first_name: text(body.first_name),
@@ -2206,26 +2197,28 @@ function donorFields(body) {
     consent_given: body.consent_given === true
   };
   if (!f.first_name || !f.last_name || !f.birthdate) throw new HttpError(400, 'First name, last name and birthdate are required.');
+  // CHANGED: sex, contact number and address are NOT NULL in the database
+  if (!f.sex || !f.contact_number || !f.address) throw new HttpError(400, 'Sex, contact number and address are required.');
   if (!isIsoDate(f.birthdate)) throw new HttpError(400, 'Invalid birthdate.');
-  if (f.sex && !SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
+  if (!SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
   if (f.blood_type && !BLOOD_TYPES.includes(f.blood_type)) throw new HttpError(400, 'Invalid blood type.');
   if (!['active', 'inactive'].includes(f.donor_status)) throw new HttpError(400, 'Invalid donor status.');
   return f;
 }
-
+ 
 app.get('/api/donors', allow(...DONOR_READERS), handler(async (req, res) => {
   res.json(await listAll('donors'));
 }));
-
+ 
 app.post('/api/donors', allow(ADMIN, REG), handler(async (req, res) => {
   const fields = donorFields(req.body);
   if (fields.consent_given) fields.consent_recorded_at = new Date().toISOString();
   const activityId = req.body.activity_id ? intParam(req.body.activity_id, 'activity') : null;
   if (activityId && !(await rowExists('mbd_activities', activityId))) throw new HttpError(400, 'Unknown activity.');
-
+ 
   const { data: donor, error } = await db.from('donors').insert(fields).select().single();
   dbFail(error);
-
+ 
   if (activityId) {
     const { error: pErr } = await db.from('activity_donors')
       .insert({ donor_id: donor.donor_id, activity_id: activityId, participation_status: 'registered' });
@@ -2236,7 +2229,7 @@ app.post('/api/donors', allow(ADMIN, REG), handler(async (req, res) => {
   }
   res.status(201).json(donor);
 }));
-
+ 
 app.patch('/api/donors/:id', allow(ADMIN, REG), handler(async (req, res) => {
   const id = intParam(req.params.id);
   const fields = donorFields(req.body);
@@ -2247,16 +2240,16 @@ app.patch('/api/donors/:id', allow(ADMIN, REG), handler(async (req, res) => {
   if (!fields.consent_given) fields.consent_recorded_at = null;
   await updateRow('donors', id, fields, res, 'Donor not found.');
 }));
-
+ 
 // ==========================================
 // API: PARTICIPATIONS
 // ==========================================
 const PARTICIPATION_STATUSES = ['registered', 'attended', 'withdrawn', 'no_show'];
-
+ 
 app.get('/api/participations', allow(...DONOR_READERS), handler(async (req, res) => {
   res.json(await listAll('activity_donors'));
 }));
-
+ 
 app.post('/api/participations', allow(ADMIN, REG), handler(async (req, res) => {
   const donorId = intParam(req.body.donor_id, 'donor');
   const activityId = intParam(req.body.activity_id, 'activity');
@@ -2268,25 +2261,25 @@ app.post('/api/participations', allow(ADMIN, REG), handler(async (req, res) => {
   dbFail(error, 'This donor is already registered for this activity.');
   res.status(201).json(data);
 }));
-
+ 
 app.patch('/api/participations/:id', allow(ADMIN, REG), handler(async (req, res) => {
   const status = text(req.body.participation_status);
   if (!PARTICIPATION_STATUSES.includes(status)) throw new HttpError(400, 'Invalid attendance status.');
   await updateRow('activity_donors', intParam(req.params.id), { participation_status: status }, res, 'Participation not found.');
 }));
-
+ 
 app.delete('/api/participations/:id', allow(ADMIN, REG), handler(async (req, res) => {
   const { error } = await db.from('activity_donors').delete().eq('participation_id', intParam(req.params.id));
   dbFail(error);
   res.json({ ok: true });
 }));
-
+ 
 // ==========================================
 // API: SCREENINGS
 // Outcomes are recorded by Medical Personnel; this app never decides eligibility.
 // ==========================================
 const SCREENING_OUTCOMES = ['accepted', 'deferred', 'rejected'];
-
+ 
 function screeningFields(body) {
   const f = {
     systolic_bp: body.systolic_bp ?? null,
@@ -2305,7 +2298,7 @@ function screeningFields(body) {
   }
   return f;
 }
-
+ 
 app.get('/api/screenings', allow(ADMIN, MED, DON), handler(async (req, res) => {
   if (req.user.role === DON) {
     // Donation staff: accepted outcomes only, no measurements or notes.
@@ -2317,7 +2310,7 @@ app.get('/api/screenings', allow(ADMIN, MED, DON), handler(async (req, res) => {
   }
   res.json(await listAll('screening_records'));
 }));
-
+ 
 app.post('/api/screenings', allow(MED), handler(async (req, res) => {
   const participationId = intParam(req.body.participation_id, 'participation');
   if (!(await rowExists('activity_donors', participationId))) throw new HttpError(400, 'Unknown participation record.');
@@ -2327,18 +2320,22 @@ app.post('/api/screenings', allow(MED), handler(async (req, res) => {
   dbFail(error, 'A screening record already exists for this participation.');
   res.status(201).json(data);
 }));
-
+ 
 app.patch('/api/screenings/:id', allow(MED), handler(async (req, res) => {
-  await updateRow('screening_records', intParam(req.params.id), { ...screeningFields(req.body), screened_by: req.user.id }, res, 'Screening not found.');
+  // CHANGED: screened_by removed - the database does not allow it to be changed
+  await updateRow('screening_records', intParam(req.params.id), screeningFields(req.body), res, 'Screening not found.');
 }));
-
+ 
 // ==========================================
 // API: DONATIONS
+// A donation now links to a SCREENING (donation_records.screening_id).
+// The server translates, so the browser can keep using participation_id.
 // ==========================================
 function donationFields(body) {
   const status = text(body.donation_status);
   const volume = body.volume_ml === null || body.volume_ml === undefined || body.volume_ml === '' ? null : Number(body.volume_ml);
-  const f = { bag_serial_no: text(body.bag_serial_no), volume_ml: volume, donation_status: status };
+  // CHANGED: volume_ml is NOT NULL in the database, so a blank volume is saved as 0
+  const f = { bag_serial_no: text(body.bag_serial_no), volume_ml: volume ?? 0, donation_status: status };
   if (!f.bag_serial_no) throw new HttpError(400, 'Bag serial number is required.');
   if (!['completed', 'not_completed'].includes(status)) throw new HttpError(400, 'Donation status must be completed or not_completed.');
   if (status === 'completed' && (!Number.isFinite(volume) || volume <= 0)) {
@@ -2347,41 +2344,49 @@ function donationFields(body) {
   if (status !== 'completed' && volume !== null && !Number.isFinite(volume)) throw new HttpError(400, 'Invalid volume.');
   return f;
 }
-
+ 
+// CHANGED: now returns the screening_id of the Accepted screening
 async function requireAccepted(participationId) {
   const { data, error } = await db.from('screening_records')
-    .select('screening_outcome').eq('participation_id', participationId).maybeSingle();
+    .select('screening_id, screening_outcome').eq('participation_id', participationId).maybeSingle();
   if (error) throw error;
   if (!data || data.screening_outcome !== 'accepted') {
     throw new HttpError(400, 'A donation can be recorded only for a participation with an Accepted screening outcome.');
   }
+  return data.screening_id;
 }
-
+ 
+// CHANGED: joins through screening_records and adds participation_id back for the browser
 app.get('/api/donations', allow(ADMIN, MED, DON), handler(async (req, res) => {
-  res.json(await listAll('donation_records'));
+  const { data, error } = await db.from('donation_records')
+    .select('*, screening_records(participation_id)').order('donation_id');
+  if (error) throw error;
+  res.json(data.map(({ screening_records, ...d }) =>
+    ({ ...d, participation_id: screening_records ? screening_records.participation_id : null })));
 }));
-
+ 
+// CHANGED: saves screening_id instead of participation_id
 app.post('/api/donations', allow(DON), handler(async (req, res) => {
   const participationId = intParam(req.body.participation_id, 'participation');
   if (!(await rowExists('activity_donors', participationId))) throw new HttpError(400, 'Unknown participation record.');
   const fields = donationFields(req.body);
-  await requireAccepted(participationId);
+  const screeningId = await requireAccepted(participationId);
   const { data, error } = await db.from('donation_records')
-    .insert({ ...fields, participation_id: participationId, recorded_by: req.user.id })
+    .insert({ ...fields, screening_id: screeningId, recorded_by: req.user.id })
     .select().single();
-  dbFail(error, 'This participation already has a donation record, or the bag serial number is already used.');
-  res.status(201).json(data);
+  dbFail(error, 'This screening already has a donation record, or the bag serial number is already used.');
+  res.status(201).json({ ...data, participation_id: participationId });
 }));
-
+ 
 app.patch('/api/donations/:id', allow(DON), handler(async (req, res) => {
   await updateRow('donation_records', intParam(req.params.id), donationFields(req.body), res, 'Donation not found.');
 }));
-
+ 
 // ==========================================
 // FALLBACKS & ERROR HANDLING
 // ==========================================
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
-
+ 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
@@ -2391,8 +2396,9 @@ app.use((err, req, res, next) => {
   if (hint) console.error('  Hint:', hint);
   res.status(500).json({ error: 'Database error. Please try again.' });
 });
-
+ 
 app.listen(PORT, () => {
   console.log(`Blood Drive Manager listening on port ${PORT}`);
   checkConnection();
 });
+ 
