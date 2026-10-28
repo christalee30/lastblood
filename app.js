@@ -1,5 +1,3 @@
-
- 
 try { require('dotenv').config(); } catch (e) { /* dotenv is optional on Render */ }
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
@@ -401,12 +399,10 @@ const INDEX_HTML = `<!DOCTYPE html>
                             </div>
                             <div class="field">
                                 <label for="sex">Sex</label>
-                                <select id="sex">
-                                    <option value="">Not stated</option>
+                                <select id="sex" required>
+                                    <option value="">Select...</option>
                                     <option value="female">Female</option>
                                     <option value="male">Male</option>
-                                    <option value="other">Other</option>
-                                    <option value="prefer_not_to_say">Prefer not to say</option>
                                 </select>
                             </div>
                             <div class="field">
@@ -421,7 +417,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                             </div>
                             <div class="field">
                                 <label for="contact">Contact Number (fictional)</label>
-                                <input id="contact">
+                                <input id="contact" required>
                             </div>
                             <div class="field">
                                 <label for="donor-status">Donor Status</label>
@@ -432,7 +428,7 @@ const INDEX_HTML = `<!DOCTYPE html>
                             </div>
                             <div class="field full">
                                 <label for="address">Address</label>
-                                <input id="address">
+                                <input id="address" required>
                             </div>
                             <div class="field full check">
                                 <label><input type="checkbox" id="consent-given"> Donor has given consent to donate and to the recording of their data</label>
@@ -1076,7 +1072,7 @@ const LABELS = {
     registered: "Registered", attended: "Attended", withdrawn: "Withdrawn", no_show: "No show",
     accepted: "Accepted", deferred: "Deferred", rejected: "Rejected",
     not_completed: "Not completed", active: "Active", inactive: "Inactive",
-    male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say"
+    male: "Male", female: "Female"
 };
  
 const BADGE_COLOR = {
@@ -1777,11 +1773,14 @@ $("new-donor").addEventListener("submit", e => {
             birthdate: $("birthdate").value,
             sex: nullIfEmpty($("sex").value),
             blood_type: nullIfEmpty($("blood-type").value),
-            contact_number: nullIfEmpty($("contact").value.trim()),
-            address: nullIfEmpty($("address").value.trim()),
+            contact_number: $("contact").value.trim(),
+            address: $("address").value.trim(),
             donor_status: $("donor-status").value,
             consent_given: consent          // the server stamps the consent time
         };
+        if (!payload.sex) throw new Error("Please select the donor's sex.");
+        if (!payload.contact_number) throw new Error("Contact number is required.");
+        if (!payload.address) throw new Error("Address is required.");
         // Duplicate-donor WARNING (not a block): same name and birthdate.
         const dup = state.donors.find(d => d.donor_id !== Number(id)
             && d.first_name.toLowerCase() === payload.first_name.toLowerCase()
@@ -2069,6 +2068,8 @@ app.get('/api/reports/activity-summary', handler(async (req, res) => {
     listAll('donation_records')
   ]);
   const activityOf = new Map(parts.map((p) => [p.participation_id, p.activity_id]));
+  // donation_records now links to a screening, not directly to a participation.
+  const partOfScreening = new Map(screenings.map((s) => [s.screening_id, s.participation_id]));
   const rows = activities.map((a) => ({
     activity_id: a.activity_id,
     participants: parts.filter((p) => p.activity_id === a.activity_id).length,
@@ -2080,7 +2081,7 @@ app.get('/api/reports/activity-summary', handler(async (req, res) => {
     if (r && r[s.screening_outcome] !== undefined) r[s.screening_outcome]++;
   }
   for (const d of donations) {
-    const r = byId.get(activityOf.get(d.participation_id));
+    const r = byId.get(activityOf.get(partOfScreening.get(d.screening_id)));
     if (r && d.donation_status === 'completed') r.completed++;
   }
   res.json(rows);
@@ -2194,7 +2195,7 @@ app.delete('/api/assignments/:id', allow(ADMIN, COORD), handler(async (req, res)
 // API: DONORS
 // ==========================================
 const DONOR_READERS = [ADMIN, REG, MED];
-const SEXES = ['male', 'female', 'other', 'prefer_not_to_say'];
+const SEXES = ['male', 'female'];
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 async function acceptedParticipationIds() {
@@ -2213,13 +2214,16 @@ function donorFields(body) {
     birthdate: text(body.birthdate),
     sex: text(body.sex) || null,
     blood_type: text(body.blood_type) || null,
-    contact_number: text(body.contact_number) || null,
-    address: text(body.address) || null,
+    contact_number: text(body.contact_number),
+    address: text(body.address),
     donor_status: text(body.donor_status) || 'active',
     consent_given: body.consent_given === true
   };
   if (!f.first_name || !f.last_name || !f.birthdate) throw new HttpError(400, 'First name, last name and birthdate are required.');
-  if (f.sex && !SEXES.includes(f.sex)) throw new HttpError(400, 'Invalid sex value.');
+  if (!f.sex) throw new HttpError(400, 'Sex is required.');
+  if (!SEXES.includes(f.sex)) throw new HttpError(400, 'Sex must be male or female.');
+  if (!f.contact_number) throw new HttpError(400, 'Contact number is required.');
+  if (!f.address) throw new HttpError(400, 'Address is required.');
   if (!isIsoDate(f.birthdate)) throw new HttpError(400, 'Invalid birthdate.');
   const dateParts = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -2374,19 +2378,20 @@ app.post('/api/screenings', allow(MED), handler(async (req, res) => {
 }));
  
 app.patch('/api/screenings/:id', allow(MED), handler(async (req, res) => {
-  // CHANGED: screened_by removed - the database does not allow it to be changed
+  // screened_by is not sent here - the database does not allow it to be changed
   await updateRow('screening_records', intParam(req.params.id), screeningFields(req.body), res, 'Screening not found.');
 }));
  
 // ==========================================
 // API: DONATIONS
-// A donation now links to a SCREENING (donation_records.screening_id).
+// A donation links to a SCREENING (donation_records.screening_id).
 // The server translates, so the browser can keep using participation_id.
 // ==========================================
 function donationFields(body) {
   const status = text(body.donation_status);
   const volume = body.volume_ml === null || body.volume_ml === undefined || body.volume_ml === '' ? null : Number(body.volume_ml);
-  const f = { bag_serial_no: text(body.bag_serial_no), volume_ml: volume, donation_status: status };
+  // The database requires a number, so a blank volume is stored as 0.
+  const f = { bag_serial_no: text(body.bag_serial_no), volume_ml: volume ?? 0, donation_status: status };
   if (!f.bag_serial_no) throw new HttpError(400, 'Bag serial number is required.');
   if (!['completed', 'not_completed'].includes(status)) throw new HttpError(400, 'Donation status must be completed or not_completed.');
   if (volume !== null && (!Number.isInteger(volume) || volume < 0 || volume > 1000)) {
@@ -2423,12 +2428,12 @@ app.post('/api/donations', allow(DON), handler(async (req, res) => {
   const participationId = intParam(req.body.participation_id, 'participation');
   if (!(await rowExists('activity_donors', participationId))) throw new HttpError(400, 'Unknown participation record.');
   const fields = donationFields(req.body);
-  await requireAccepted(participationId);
+  const screeningId = await requireAccepted(participationId);
   const { data, error } = await db.from('donation_records')
-    .insert({ ...fields, participation_id: participationId, recorded_by: req.user.id })
+    .insert({ ...fields, screening_id: screeningId, recorded_by: req.user.id })
     .select().single();
-  dbFail(error, 'This participation already has a donation record, or the bag serial number is already used.');
-  res.status(201).json(data);
+  dbFail(error, 'This screening already has a donation record, or the bag serial number is already used.');
+  res.status(201).json({ ...data, participation_id: participationId });
 }));
  
 app.patch('/api/donations/:id', allow(DON), handler(async (req, res) => {
@@ -2454,4 +2459,3 @@ app.listen(PORT, () => {
   console.log(`Blood Drive Manager listening on port ${PORT}`);
   checkConnection();
 });
- 
